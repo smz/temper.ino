@@ -1,2 +1,3 @@
 # temper.ino
-An Arduino based digital thermostat
+## An Arduino based digital thermostat
+### Utterly experimental...
