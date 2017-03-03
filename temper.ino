@@ -259,6 +259,8 @@ void loop()
       PrintLoops();
     #endif
 
+    GetTemperature();
+
     // Get the time and set timestamp
     if (Rtc.IsDateTimeValid())
     {
@@ -269,13 +271,9 @@ void loop()
     }
     else
     {
-      // Battery on the device is low or even missing and the power line was disconnected
+      setpoint = MIN_TEMP;
       Serial.println(F("RTC clock failed!"));
-      // Shutdown!
-      shutdown();
     }
-
-    GetTemperature();
 
     select_valve_status();
   }
@@ -370,7 +368,8 @@ void GetTemperature()
   else
   {
     Serial.print(timestamp);
-    Serial.println(F("MCP9808 failed!"));
+    Serial.println(F(" MCP9808 failed!"));
+    temperature = MAX_TEMP;
   }
 #endif
 
