@@ -1,0 +1,459 @@
+#include <time.h>
+
+// DEBUG
+// 0 No debug
+// 1 Debug actions
+// 2 Debug actions and Rotary Encoder
+// 3 Debug actions, Rotary Encoder and Loops
+#define DEBUG 2
+
+// Parameters
+
+#define SERIAL_SPEED 57600
+
+#define DS3231_RTC
+#undef  DS3231_TEMP
+#define MCP9808_TEMP
+#define WITH_LCD
+#define WITH_ENCODER
+
+#define TIMEZONE (1 * ONE_HOUR)
+#define RESET_RTC_TIME
+
+// Control parameters
+#define TEMP_HYSTERESIS 0.5
+#define POLLING_TIME 1000
+#define VALVE_ACTIVATION_TIME 15
+#define MIN_TEMP 5
+#define MAX_TEMP 25
+
+#define VALVE_PIN 13
+
+
+// Global variables
+float setpoint;
+float temperature;
+bool valve_target;
+bool valve_status;
+char timestamp[20];
+unsigned long prev_millis = 0;
+time_t now;
+time_t prev_valve_time;
+
+
+#ifdef WITH_LCD
+  // LCD PINS      RS, EN, D4, D5, D6, D7
+  #define LCD_PINS  7,  8,  9, 10, 11, 12
+  #include <LiquidCrystal.h>
+  char lcd_line1[17];
+  char lcd_line2[17];
+  LiquidCrystal lcd(LCD_PINS);
+#endif
+
+
+#ifdef DS3231_RTC
+  // DS3231 CONNECTIONS:
+  // SDA --> SDA
+  // SCL --> SCL
+  #include <Wire.h>
+  #include <RtcDS3231.h>
+  RtcDS3231<TwoWire> Rtc(Wire);
+#endif
+
+
+#ifdef MCP9808_TEMP
+  // Adafruit MCP9808 i2c temperature sensor
+  // See: http://www.adafruit.com/products/1782
+  #define MCP9808_ADDRESS 0x18
+  #include "Adafruit_MCP9808.h"
+  Adafruit_MCP9808 tempsensor = Adafruit_MCP9808();
+#endif
+
+
+#ifdef WITH_ENCODER
+  // Rotary Encoder
+  // Uses the ClickEncoder library by 0xPIT
+  // See: https://github.com/0xPIT/encoder
+  // ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
+  // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
+  #define ENCODER_PINS 2, 3, 4
+  #define ENCODER_TIMER 1000
+  #define STEPS_PER_DEGREE 2
+  #include <TimerOne.h>
+  #include <ClickEncoder.h>
+  ClickEncoder *encoder;
+  int16_t encoder_last, encoder_value;
+  void timerIsr()
+  {
+    encoder->service();
+  }
+#endif
+
+
+// Support stuff for debug...
+#if DEBUG > 0
+  #define DUMP(x)           \
+    Serial.print(#x);       \
+    Serial.print(F(" = ")); \
+    Serial.println(x);
+
+  #define DUMP_TM(x)  \
+    DUMP(x.tm_year);  \
+    DUMP(x.tm_mon);   \
+    DUMP(x.tm_mday);  \
+    DUMP(x.tm_hour);  \
+    DUMP(x.tm_min);   \
+    DUMP(x.tm_sec);   \
+    DUMP(x.tm_isdst); \
+    DUMP(x.tm_yday);  \
+    DUMP(x.tm_wday);
+#endif
+
+#if DEBUG > 2
+  unsigned long loops = 0;
+  #define PrintLoops() {           \
+      Serial.print(timestamp);     \
+      Serial.print(F(" Loops: ")); \
+      Serial.println(loops);       \
+      loops = 0;                   \
+      }
+
+#endif
+
+
+
+// SETUP
+void setup()
+{
+
+  // Setup Serial
+  Serial.begin(SERIAL_SPEED);
+  #if DEBUG > 0
+    Serial.println(F("Setup started."));
+  #endif
+
+#ifdef WITH_LCD
+  // Setup LCD
+  lcd.begin(16, 2);
+#endif
+
+#ifdef DS3231_RTC
+  // Setup RTC
+  Rtc.Begin();
+  set_zone(TIMEZONE);
+
+  // Here we convert the __DATE__ and __TIME__ preprocessor macros to a "time_t value"
+  // to initialize the RTC with it in case it is "older" than
+  // the compile time (i.e: it was wrongly set. But your PC clock might be wrong too!)
+  // or in case it is invalid.
+  // This is *very* crude, it would be MUCH better to take the time from a reliable
+  // source (GPS or NTP), or even set it "by hand", but -hey!-, this is just an example!!
+  // N.B.: We always set the RTC to the compile time when we are debugging.
+  #define COMPILE_DATE_TIME (__DATE__ " " __TIME__)
+  time_t compiled_time_t = str20ToTime(COMPILE_DATE_TIME);
+
+
+  // Now we check the health of our RTC and in case we try to "fix it"
+  // Common causes for it being invalid are:
+  //    1) first time you ran and the device wasn't running yet
+  //    2) the battery on the device is low or even missing
+
+
+  // Check if the time is valid.
+  #ifndef RESET_RTC_TIME
+  if (!Rtc.IsDateTimeValid())
+  #endif
+  {
+    #ifndef RESET_RTC_TIME
+    Serial.println(F("WARNING: RTC invalid time, setting RTC with compile time."));
+    #else
+    Serial.println(F("Forcing setting RTC with compile time."));
+    #endif
+    Rtc.SetTime(&compiled_time_t);
+  }
+
+  // Check if the RTC clock is running (Yes, it can be stopped, if you wish!)
+  if (!Rtc.GetIsRunning())
+  {
+    Serial.println(F("WARNING: RTC was not actively running, starting it now."));
+    Rtc.SetIsRunning(true);
+  }
+
+  // Get the time from the RTC
+  now = Rtc.GetTime();
+
+  // Reset the RTC if "now" is older than "Compile time"
+  if (now < compiled_time_t)
+  {
+    Serial.println(F("WARNING: RTC is older than compile time, setting RTC with compile time!"));
+    Rtc.SetTime(&compiled_time_t);
+  }
+
+  // Reset the DS3231 RTC status in case it was wrongly configured
+  Rtc.Enable32kHzPin(false);
+  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
+#endif
+
+
+#ifdef MCP9808_TEMP
+  // Setup MCP9808
+  //
+  // Make sure the sensor is found, you can also pass in a different i2c
+  // address with tempsensor.begin(0x19) for example
+  if (!tempsensor.begin())
+  {
+    Serial.println(F("Couldn't find MCP9808!"));
+  }
+#endif
+
+
+#ifdef WITH_ENCODER
+  // Setup ENCODER
+  encoder = new ClickEncoder(ENCODER_PINS);
+  Timer1.initialize(ENCODER_TIMER);
+  Timer1.attachInterrupt(timerIsr);
+  encoder_last = -1;
+#endif
+
+
+  // Initialize global variables
+  setpoint = MIN_TEMP;
+  temperature = MIN_TEMP;
+  valve_target = false;
+  valve_status = false;
+  pinMode(VALVE_PIN, OUTPUT);
+  digitalWrite(VALVE_PIN, LOW);
+  prev_valve_time = now;
+  struct tm now_tm;
+  localtime_r(&now, &now_tm);
+  strcpy(timestamp, isotime(&now_tm));
+
+  #if DEBUG > 0
+    Serial.println(F("Setup done."));
+    Serial.println("");
+  #endif
+
+  // End of Setup
+}
+
+
+
+// Main loop
+void loop()
+{
+
+  valve_status = (bool) digitalRead(VALVE_PIN);
+  unsigned long current_millis = millis();
+
+  #if DEBUG > 2
+    loops++;
+  #endif
+
+  get_commands();
+
+  if (current_millis - prev_millis >= POLLING_TIME)
+  {
+    prev_millis += POLLING_TIME;
+    
+    #if DEBUG > 2
+      PrintLoops();
+    #endif
+
+    // Get the time and set timestamp
+    if (Rtc.IsDateTimeValid())
+    {
+      now = Rtc.GetTime();
+      struct tm now_tm;
+      localtime_r(&now, &now_tm);
+      strcpy(timestamp, isotime(&now_tm));
+    }
+    else
+    {
+      // Battery on the device is low or even missing and the power line was disconnected
+      Serial.println(F("RTC clock failed!"));
+      // Shutdown!
+      shutdown();
+    }
+
+    GetTemperature();
+
+    select_valve_status();
+  }
+
+  // Display status on LCD
+  display_status();
+
+  // End of Loop
+}
+
+
+
+// User interaction
+void get_commands()
+{
+#ifdef WITH_ENCODER
+  // Handle encoder
+  encoder_value += encoder->getValue();
+  encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, encoder_value);
+  encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, encoder_value);
+
+  if (encoder_value != encoder_last)
+  {
+    encoder_last = encoder_value;
+    setpoint = (float) encoder_value / STEPS_PER_DEGREE;
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Setpoint: "));
+      Serial.println(setpoint);
+    #endif
+  }
+
+  // Handle encoder button
+  ClickEncoder::Button b = encoder->getButton();
+  if (b != ClickEncoder::Open)
+  {
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Pressed:
+        #if DEBUG > 1
+          Serial.println(F("Pressed - I've never seen that!"));
+        #endif
+        break;
+      case ClickEncoder::Held:
+        encoder_value = 0;
+        #if DEBUG > 1
+          Serial.println(F("Held - Reset"));
+        #endif
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+        break;
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        break;
+      case ClickEncoder::DoubleClicked:
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+        #if DEBUG > 1
+          Serial.print(F("DoubleClicked"));
+          Serial.print(F(" - Acceleration "));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
+        #endif
+        break;
+    }
+  }
+#endif
+}
+
+
+
+// GetTemperature function
+void GetTemperature()
+{
+#ifdef MCP9808_TEMP
+  // MCP9808 Temperature
+  #define MCP9808_DELAY 250
+  if (tempsensor.begin(MCP9808_ADDRESS))
+  {
+    tempsensor.shutdown_wake(0);
+    temperature = tempsensor.readTempC();
+    delay(MCP9808_DELAY);
+    tempsensor.shutdown_wake(1);
+  }
+  else
+  {
+    Serial.print(timestamp);
+    Serial.println(F("MCP9808 failed!"));
+  }
+#endif
+
+#ifdef DS3231_TEMP
+  // RTC Temperature
+  temperature = Rtc.GetTemperature();
+#endif
+}
+
+
+
+// See if valve status should be modified
+void select_valve_status()
+{
+  if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
+  {
+    if (setpoint > temperature)
+    {
+      valve_target = true;
+    }
+    else
+    {
+      valve_target = false;
+    }
+
+    if (valve_status != valve_target)
+    {
+      if (now - prev_valve_time > VALVE_ACTIVATION_TIME)
+      {
+        digitalWrite(VALVE_PIN, valve_target ? HIGH : LOW);
+        prev_valve_time = now;
+        valve_status = valve_target;
+        #if DEBUG > 0
+        Serial.print(timestamp);
+        Serial.println(valve_status ? F(" Turned on.") : F(" Turned off."));
+        #endif
+      }
+      #if DEBUG > 0
+      else
+      {
+        Serial.print(timestamp);
+        Serial.print(F(" Setpoint: "));
+        Serial.print(setpoint);
+        Serial.print(F(" Temp: "));
+        Serial.print(temperature);
+        Serial.println(valve_target ? F(" Turn on!") : F(" Turn off!"));
+      }
+      #endif
+    }
+  }
+}
+
+
+
+// Display status on LCD
+void display_status ()
+{
+#ifdef WITH_LCD
+  char str_temp[16];
+  dtostrf(temperature, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line1, "Amb:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+  dtostrf(setpoint, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line2, "Set:%6s", str_temp);
+  lcd.setCursor(0, 0);
+  lcd.print(lcd_line1);
+  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
+  lcd.setCursor(0, 1);
+  lcd.print(lcd_line2);
+  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
+#endif
+}
+
+
+
+void shutdown()
+{
+  digitalWrite(VALVE_PIN, LOW);
+  valve_status = false;
+  valve_target = false;
+  temperature = 0;
+  setpoint = 0;
+  display_status();
+  while (true);
+}
