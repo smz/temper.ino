@@ -7,27 +7,33 @@
 // 3 Debug actions, Rotary Encoder and Loops
 #define DEBUG 2
 
+// CONNECTIONS
+// LCD           RS, EN, D4, D5, D6, D7
+#define LCD_PINS  7,  8,  9, 10, 11, 12
+#define RTC_SOFTWARE_WIRE_SDA PIN_A0
+#define RTC_SOFTWARE_WIRE_SCL PIN_A1
+#define VALVE_PIN 13
+
+
 // Parameters
-
 #define SERIAL_SPEED 57600
-
-#define DS3231_RTC
+#define DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
 #define WITH_LCD
 #define WITH_ENCODER
-
-#define TIMEZONE (1 * ONE_HOUR)
 #define RESET_RTC_TIME
+#define RTC_SOFTWARE_WIRE
+
 
 // Control parameters
+#define TIMEZONE (1 * ONE_HOUR)
 #define TEMP_HYSTERESIS 0.5
 #define POLLING_TIME 1000
 #define VALVE_ACTIVATION_TIME 15
 #define MIN_TEMP 5
 #define MAX_TEMP 25
 
-#define VALVE_PIN 13
 
 
 // Global variables
@@ -42,8 +48,6 @@ time_t prev_valve_time;
 
 
 #ifdef WITH_LCD
-  // LCD PINS      RS, EN, D4, D5, D6, D7
-  #define LCD_PINS  7,  8,  9, 10, 11, 12
   #include <LiquidCrystal.h>
   char lcd_line1[17];
   char lcd_line2[17];
@@ -51,13 +55,26 @@ time_t prev_valve_time;
 #endif
 
 
-#ifdef DS3231_RTC
-  // DS3231 CONNECTIONS:
-  // SDA --> SDA
-  // SCL --> SCL
+#ifndef RTC_SOFTWARE_WIRE
   #include <Wire.h>
-  #include <RtcDS3231.h>
-  RtcDS3231<TwoWire> Rtc(Wire);
+  #ifdef DS3231
+    #include <RtcDS3231.h>
+    RtcDS3231<TwoWire> Rtc(Wire);
+  #else
+    #include <RtcDS1307.h>
+    RtcDS1307<TwoWire> Rtc(Wire);
+  #endif
+#else
+  #include <SoftwareWire.h>
+  #ifdef DS3231
+    #include <RtcDS3231.h>
+    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
+    RtcDS3231<SoftwareWire> Rtc(myWire);
+  #else
+    #include <RtcDS1307.h>
+    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
+    RtcDS1307<SoftwareWire> Rtc(myWire);
+  #endif
 #endif
 
 
@@ -137,7 +154,7 @@ void setup()
   lcd.begin(16, 2);
 #endif
 
-#ifdef DS3231_RTC
+#ifdef DS3231
   // Setup RTC
   Rtc.Begin();
   set_zone(TIMEZONE);
