@@ -7,16 +7,8 @@
 // 3 Debug actions, Rotary Encoder and Loops
 #define DEBUG 2
 
-// CONNECTIONS
-// LCD           RS, EN, D4, D5, D6, D7
-#define LCD_PINS  7,  8,  9, 10, 11, 12
-#define RTC_SOFTWARE_WIRE_SDA PIN_A0
-#define RTC_SOFTWARE_WIRE_SCL PIN_A1
-#define VALVE_PIN 13
 
-
-// Parameters
-#define SERIAL_SPEED 57600
+// Project configuration parameters
 #define DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
@@ -26,10 +18,22 @@
 #define RTC_SOFTWARE_WIRE
 
 
-// Control parameters
+// Connections
+#define LCD_PINS  7,  8,  9, 10, 11, 12
+//      LCD_PINS RS, EN, D4, D5, D6, D7
+#define RTC_SOFTWARE_WIRE_SDA PIN_A0
+#define RTC_SOFTWARE_WIRE_SCL PIN_A1
+#define VALVE_PIN 13
+#define ENCODER_PINS 2, 3, 4
+
+
+// Operative parameters
+#define SERIAL_SPEED 57600
 #define TIMEZONE (1 * ONE_HOUR)
 #define TEMP_HYSTERESIS 0.5
 #define POLLING_TIME 1000
+#define ENCODER_TIMER 1000
+#define STEPS_PER_DEGREE 2
 #define VALVE_ACTIVATION_TIME 15
 #define MIN_TEMP 5
 #define MAX_TEMP 25
@@ -93,9 +97,6 @@ time_t prev_valve_time;
   // See: https://github.com/0xPIT/encoder
   // ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
   // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
-  #define ENCODER_PINS 2, 3, 4
-  #define ENCODER_TIMER 1000
-  #define STEPS_PER_DEGREE 2
   #include <TimerOne.h>
   #include <ClickEncoder.h>
   ClickEncoder *encoder;
