@@ -516,22 +516,22 @@ void init_schedule()
 
   // This is just for testing. Must be replaced with code to read values from EEPROM)
   schedule[0].tow = now_tow - 1;
-  schedule[0].temperature = 23.0;
+  schedule[0].temperature = 11.0;
 
   schedule[1].tow = now_tow + 1;
-  schedule[1].temperature = 25.0;
+  schedule[1].temperature = 12.0;
 
   schedule[2].tow = now_tow + 2;
-  schedule[2].temperature = 8.0;
+  schedule[2].temperature = 13.0;
 
-  schedule[3].tow = now_tow - 1 + 1440;
-  schedule[3].temperature = 23.0;
+  schedule[3].tow = ((now_tm.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
+  schedule[3].temperature = 21.0;
 
-  schedule[4].tow = now_tow + 1 + 1440;
-  schedule[4].temperature = 25.0;
+  schedule[4].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:00:01
+  schedule[4].temperature = 22.0;
 
-  schedule[5].tow = now_tow + 2 + 1440;
-  schedule[5].temperature = 8.0;
+  schedule[5].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:00:02
+  schedule[5].temperature = 23.0;
 }
 
 
