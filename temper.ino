@@ -38,7 +38,7 @@
 #define VALVE_ACTIVATION_TIME 15
 #define MIN_TEMP 5
 #define MAX_TEMP 25
-#define MAX_STEPS_PER_DAY 12
+#define MAX_WEEKLY_STEPS 70
 
 
 // Global variables
@@ -51,12 +51,11 @@ char timestamp[20];
 unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
-uint16_t now_tod;
+uint16_t now_tow;
 
 // Schedule table
-// typedef struct event {uint16_t tod; float temperature; bool done;};
-// event schedule[7][MAX_STEPS_PER_DAY];
-struct {uint16_t tod; float temperature; bool done;} schedule[7][MAX_STEPS_PER_DAY];
+struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
+uint8_t current_step = MAX_WEEKLY_STEPS + 1;
 
 
 #ifdef WITH_LCD
@@ -253,7 +252,7 @@ void setup()
   prev_valve_time = now;
   localtime_r(&now, &now_tm);
   strcpy(timestamp, isotime(&now_tm));
-  now_tod = now_tm.tm_hour * 100 + now_tm.tm_min;
+  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
 
   // Initialize the weekly schedule
   init_schedule();
@@ -297,7 +296,7 @@ void loop()
       now = Rtc.GetTime();
       localtime_r(&now, &now_tm);
       strcpy(timestamp, isotime(&now_tm));
-      now_tod = now_tm.tm_hour * 100 + now_tm.tm_min;
+      now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
     }
     else
     {
@@ -483,16 +482,16 @@ void check_schedule()
   int step = 0;
   float newtemp = MIN_TEMP - 1;
 
-  while (step < MAX_STEPS_PER_DAY)
+  while (step < MAX_WEEKLY_STEPS)
   {
-    if (schedule[now_tm.tm_wday][step].tod > now_tod) break;
-    newtemp = schedule[now_tm.tm_wday][step].temperature;
+    if (schedule[step].tow > now_tow) break;
+    newtemp = schedule[step].temperature;
     step++;
   }
 
   if (newtemp < MIN_TEMP) return;
 
-  if (schedule[now_tm.tm_wday][step].done) return;
+  if (step == current_step) return;
 
   #if DEBUG > 2
     Serial.print(timestamp);
@@ -501,14 +500,7 @@ void check_schedule()
 
   setpoint = newtemp;
   encoder_value = setpoint * STEPS_PER_DEGREE;
-  schedule[now_tm.tm_wday][step].done = true;
-
-  // Set all tomorrow's schedules as not done
-  int tomorrow = (now_tm.tm_wday + 1) % 7;
-  for (step = 0; step < MAX_STEPS_PER_DAY; step++)
-  {
-    schedule[tomorrow][step].done = false;
-  }
+  current_step = step;
 
 }
 
@@ -517,27 +509,29 @@ void check_schedule()
 void init_schedule()
 {
   // Initialize the weekly schedule
-  for (int day = 0; day < 7; day++)
+  for (int step = 0; step < MAX_WEEKLY_STEPS; step++)
   {
-    for (int step = 0; step < MAX_STEPS_PER_DAY; step++)
-    {
-      schedule[day][step].tod = 2500; // Set to invalid time.
-      schedule[day][step].done = false;
-    }
+    schedule[step].tow = 100000; // Set to invalid time.
   }
 
   // This is just for testing. Must be replaced with code to read values from EEPROM)
-  schedule[now_tm.tm_wday][0].tod = now_tod - 1;
-  schedule[now_tm.tm_wday][0].temperature = 23.0;
-  schedule[now_tm.tm_wday][0].done = false;
+  schedule[0].tow = now_tow - 1;
+  schedule[0].temperature = 23.0;
 
-  schedule[now_tm.tm_wday][1].tod = now_tod + 1;
-  schedule[now_tm.tm_wday][1].temperature = 25.0;
-  schedule[now_tm.tm_wday][1].done = false;
+  schedule[1].tow = now_tow + 1;
+  schedule[1].temperature = 25.0;
 
-  schedule[now_tm.tm_wday][2].tod = now_tod + 2;
-  schedule[now_tm.tm_wday][2].temperature = 8.0;
-  schedule[now_tm.tm_wday][2].done = false;
+  schedule[2].tow = now_tow + 2;
+  schedule[2].temperature = 8.0;
+
+  schedule[3].tow = now_tow - 1 + 1440;
+  schedule[3].temperature = 23.0;
+
+  schedule[4].tow = now_tow + 1 + 1440;
+  schedule[4].temperature = 25.0;
+
+  schedule[5].tow = now_tow + 2 + 1440;
+  schedule[5].temperature = 8.0;
 }
 
 
