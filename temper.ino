@@ -1,11 +1,12 @@
 #include <time.h>
 
 // DEBUG
-// 0 No debug
-// 1 Debug actions
-// 2 Debug actions and Rotary Encoder
-// 3 Debug actions, Rotary Encoder and Loops
-#define DEBUG 2
+//  0 No debug
+//  1 Debug actions
+//  2 Debug actions and Rotary Encoder
+//  3 Debug actions, Rotary Encoder and scheduler
+// 99 Debug all
+#define DEBUG 99
 
 
 // Project configuration parameters
@@ -37,7 +38,7 @@
 #define VALVE_ACTIVATION_TIME 15
 #define MIN_TEMP 5
 #define MAX_TEMP 25
-
+#define MAX_STEPS_PER_DAY 12
 
 
 // Global variables
@@ -45,10 +46,17 @@ float setpoint;
 float temperature;
 bool valve_target;
 bool valve_status;
+time_t prev_valve_time;
 char timestamp[20];
 unsigned long prev_millis = 0;
 time_t now;
-time_t prev_valve_time;
+struct tm now_tm;
+uint16_t now_tod;
+
+// Schedule table
+// typedef struct event {uint16_t tod; float temperature; bool done;};
+// event schedule[7][MAX_STEPS_PER_DAY];
+struct {uint16_t tod; float temperature; bool done;} schedule[7][MAX_STEPS_PER_DAY];
 
 
 #ifdef WITH_LCD
@@ -111,6 +119,7 @@ time_t prev_valve_time;
 // Support stuff for debug...
 #if DEBUG > 0
   #define DUMP(x)           \
+    Serial.print(" ");      \
     Serial.print(#x);       \
     Serial.print(F(" = ")); \
     Serial.println(x);
@@ -127,7 +136,7 @@ time_t prev_valve_time;
     DUMP(x.tm_wday);
 #endif
 
-#if DEBUG > 2
+#if DEBUG > 90
   unsigned long loops = 0;
   #define PrintLoops() {           \
       Serial.print(timestamp);     \
@@ -193,7 +202,7 @@ void setup()
   // Check if the RTC clock is running (Yes, it can be stopped, if you wish!)
   if (!Rtc.GetIsRunning())
   {
-    Serial.println(F("WARNING: RTC was not actively running, starting it now."));
+    Serial.println(F("WARNING: RTC wasn't running, starting it now."));
     Rtc.SetIsRunning(true);
   }
 
@@ -242,9 +251,12 @@ void setup()
   pinMode(VALVE_PIN, OUTPUT);
   digitalWrite(VALVE_PIN, LOW);
   prev_valve_time = now;
-  struct tm now_tm;
   localtime_r(&now, &now_tm);
   strcpy(timestamp, isotime(&now_tm));
+  now_tod = now_tm.tm_hour * 100 + now_tm.tm_min;
+
+  // Initialize the weekly schedule
+  init_schedule();
 
   #if DEBUG > 0
     Serial.println(F("Setup done."));
@@ -263,7 +275,7 @@ void loop()
   valve_status = (bool) digitalRead(VALVE_PIN);
   unsigned long current_millis = millis();
 
-  #if DEBUG > 2
+  #if DEBUG > 90
     loops++;
   #endif
 
@@ -272,8 +284,8 @@ void loop()
   if (current_millis - prev_millis >= POLLING_TIME)
   {
     prev_millis += POLLING_TIME;
-    
-    #if DEBUG > 2
+
+    #if DEBUG > 90
       PrintLoops();
     #endif
 
@@ -283,15 +295,17 @@ void loop()
     if (Rtc.IsDateTimeValid())
     {
       now = Rtc.GetTime();
-      struct tm now_tm;
       localtime_r(&now, &now_tm);
       strcpy(timestamp, isotime(&now_tm));
+      now_tod = now_tm.tm_hour * 100 + now_tm.tm_min;
     }
     else
     {
       setpoint = MIN_TEMP;
       Serial.println(F("RTC clock failed!"));
     }
+
+    check_schedule();
 
     select_valve_status();
   }
@@ -421,8 +435,8 @@ void select_valve_status()
         prev_valve_time = now;
         valve_status = valve_target;
         #if DEBUG > 0
-        Serial.print(timestamp);
-        Serial.println(valve_status ? F(" Turned on.") : F(" Turned off."));
+          Serial.print(timestamp);
+          Serial.println(valve_status ? F(" Turned on.") : F(" Turned off."));
         #endif
       }
       #if DEBUG > 0
@@ -460,6 +474,73 @@ void display_status ()
   lcd.print(lcd_line2);
   for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
 #endif
+}
+
+
+
+void check_schedule()
+{
+  int step = 0;
+  float newtemp = MIN_TEMP - 1;
+
+  while (step < MAX_STEPS_PER_DAY)
+  {
+    if (schedule[now_tm.tm_wday][step].tod < 0) break;       // Nothing left to do today
+    if (schedule[now_tm.tm_wday][step].tod > now_tod) break; // Nothing left to do in this hour
+    newtemp = schedule[now_tm.tm_wday][step].temperature;
+    step++;
+  }
+
+  if (newtemp < MIN_TEMP) return;
+
+  if (schedule[now_tm.tm_wday][step].done) return;
+
+  schedule[now_tm.tm_wday][step].done = true;
+
+  #if DEBUG > 2
+    Serial.print(timestamp);
+    DUMP(step);
+  #endif
+
+//  setpoint = schedule[now_tm.tm_wday][step].temperature;
+  setpoint = newtemp;
+  encoder_value = setpoint * STEPS_PER_DEGREE;
+
+  // As a precaution, set all tomorrow's schedules as not done
+  int tomorrow = (now_tm.tm_wday + 1) % 7;
+  for (step = 0; step < MAX_STEPS_PER_DAY; step++)
+  {
+    schedule[tomorrow][step].done = false;
+  }
+
+}
+
+
+
+void init_schedule()
+{
+  // Initialize the weekly schedule
+  for (int day = 0; day < 7; day++)
+  {
+    for (int step = 0; step < MAX_STEPS_PER_DAY; step++)
+    {
+      schedule[day][step].tod = 2500; // Set to one minute more than the number of minutes in a day, to invalidate.
+      schedule[day][step].done = false;
+    }
+  }
+
+  // This is just for testing. Must be replaced with code to read values from EEPROM)
+  schedule[now_tm.tm_wday][0].tod = now_tod - 1;
+  schedule[now_tm.tm_wday][0].temperature = 23.0;
+  schedule[now_tm.tm_wday][0].done = false;
+
+  schedule[now_tm.tm_wday][1].tod = now_tod + 1;
+  schedule[now_tm.tm_wday][1].temperature = 25.0;
+  schedule[now_tm.tm_wday][1].done = false;
+
+  schedule[now_tm.tm_wday][2].tod = now_tod + 2;
+  schedule[now_tm.tm_wday][2].temperature = 8.0;
+  schedule[now_tm.tm_wday][2].done = false;
 }
 
 
