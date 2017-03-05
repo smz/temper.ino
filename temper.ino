@@ -6,7 +6,7 @@
 //  2 Debug actions and Rotary Encoder
 //  3 Debug actions, Rotary Encoder and scheduler
 // 99 Debug all
-#define DEBUG 99
+#define DEBUG 3
 
 
 // Project configuration parameters
@@ -485,8 +485,7 @@ void check_schedule()
 
   while (step < MAX_STEPS_PER_DAY)
   {
-    if (schedule[now_tm.tm_wday][step].tod < 0) break;       // Nothing left to do today
-    if (schedule[now_tm.tm_wday][step].tod > now_tod) break; // Nothing left to do in this hour
+    if (schedule[now_tm.tm_wday][step].tod > now_tod) break;
     newtemp = schedule[now_tm.tm_wday][step].temperature;
     step++;
   }
@@ -502,11 +501,10 @@ void check_schedule()
     DUMP(step);
   #endif
 
-//  setpoint = schedule[now_tm.tm_wday][step].temperature;
   setpoint = newtemp;
   encoder_value = setpoint * STEPS_PER_DEGREE;
 
-  // As a precaution, set all tomorrow's schedules as not done
+  // Set all tomorrow's schedules as not done
   int tomorrow = (now_tm.tm_wday + 1) % 7;
   for (step = 0; step < MAX_STEPS_PER_DAY; step++)
   {
