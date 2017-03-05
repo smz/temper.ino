@@ -463,10 +463,10 @@ void display_status ()
   char str_temp[16];
   dtostrf(temperature, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line1, "Amb:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
   dtostrf(setpoint, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line2, "Set:%6s", str_temp);
+  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
   lcd.setCursor(0, 0);
   lcd.print(lcd_line1);
   for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
@@ -494,8 +494,6 @@ void check_schedule()
 
   if (schedule[now_tm.tm_wday][step].done) return;
 
-  schedule[now_tm.tm_wday][step].done = true;
-
   #if DEBUG > 2
     Serial.print(timestamp);
     DUMP(step);
@@ -503,6 +501,7 @@ void check_schedule()
 
   setpoint = newtemp;
   encoder_value = setpoint * STEPS_PER_DEGREE;
+  schedule[now_tm.tm_wday][step].done = true;
 
   // Set all tomorrow's schedules as not done
   int tomorrow = (now_tm.tm_wday + 1) % 7;
@@ -522,7 +521,7 @@ void init_schedule()
   {
     for (int step = 0; step < MAX_STEPS_PER_DAY; step++)
     {
-      schedule[day][step].tod = 2500; // Set to one minute more than the number of minutes in a day, to invalidate.
+      schedule[day][step].tod = 2500; // Set to invalid time.
       schedule[day][step].done = false;
     }
   }
