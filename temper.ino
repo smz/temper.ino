@@ -353,7 +353,6 @@ void get_commands()
         #endif
         break;
       case ClickEncoder::Held:
-        encoder_value = 0;
         #if DEBUG > 1
           Serial.println(F("Held - Reset"));
         #endif
@@ -369,12 +368,12 @@ void get_commands()
         #endif
         break;
       case ClickEncoder::DoubleClicked:
-        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
         #if DEBUG > 1
           Serial.print(F("DoubleClicked"));
           Serial.print(F(" - Acceleration "));
-          Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
         #endif
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
         break;
     }
   }
@@ -455,28 +454,6 @@ void select_valve_status()
 
 
 
-// Display status on LCD
-void display_status ()
-{
-#ifdef WITH_LCD
-  char str_temp[16];
-  dtostrf(temperature, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
-  dtostrf(setpoint, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
-  lcd.setCursor(0, 0);
-  lcd.print(lcd_line1);
-  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
-  lcd.setCursor(0, 1);
-  lcd.print(lcd_line2);
-  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
-#endif
-}
-
-
-
 void check_schedule()
 {
   int step = 0;
@@ -527,11 +504,33 @@ void init_schedule()
   schedule[3].tow = ((now_tm.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
   schedule[3].temperature = 21.0;
 
-  schedule[4].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:00:01
+  schedule[4].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
   schedule[4].temperature = 22.0;
 
-  schedule[5].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:00:02
+  schedule[5].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
   schedule[5].temperature = 23.0;
+}
+
+
+
+// Display status on LCD
+void display_status ()
+{
+#ifdef WITH_LCD
+  char str_temp[16];
+  dtostrf(temperature, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
+  dtostrf(setpoint, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+  lcd.setCursor(0, 0);
+  lcd.print(lcd_line1);
+  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
+  lcd.setCursor(0, 1);
+  lcd.print(lcd_line2);
+  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
+#endif
 }
 
 
