@@ -16,7 +16,7 @@
 #define WITH_LCD
 #define WITH_ENCODER
 #define RESET_RTC_TIME
-#define RTC_SOFTWARE_WIRE
+#undef  RTC_SOFTWARE_WIRE
 
 
 // Connections
