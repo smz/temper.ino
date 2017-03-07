@@ -52,7 +52,10 @@ unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
 uint16_t now_tow;
+enum PossibleProgramStatus {running, configuring};
+PossibleProgramStatus program_status = running;
 
+ 
 // Schedule table
 struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
 uint8_t current_step = MAX_WEEKLY_STEPS + 1;
@@ -162,6 +165,8 @@ void set_temperature (int16_t *encoder_value)
   *encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, *encoder_value);
   *encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, *encoder_value);
   setpoint = (float) *encoder_value / STEPS_PER_DEGREE;
+  temperature_handler.encoder_last = *encoder_value;
+  temperature_handler.encoder_value = *encoder_value;
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.print(F(" Setpoint: "));
@@ -173,6 +178,7 @@ void set_temperature (int16_t *encoder_value)
 
 void configure (int16_t *encoder_value)
 {
+  display_welcome();
 }
 
 
@@ -344,6 +350,7 @@ void loop()
 
   // Display status on LCD
   display_status();
+  refresh_lcd();
 
   // End of Loop
 }
@@ -355,11 +362,13 @@ void handle_encoder(struct encoder_handler **encoder_structure)
 {
 
   // Handle encoder
-  (*encoder_structure)->encoder_value = (*encoder_structure)->encoder_value + encoder->getValue();
+  (*encoder_structure)->encoder_value += encoder->getValue();
+
   if ((*encoder_structure)->encoder_value != (*encoder_structure)->encoder_last)
   {
     (*encoder_structure)->function(&(*encoder_structure)->encoder_value);
     (*encoder_structure)->encoder_last = (*encoder_structure)->encoder_value;
+    refresh_lcd();
   }
 
   // Handle encoder button
@@ -386,16 +395,21 @@ void handle_encoder(struct encoder_handler **encoder_structure)
         #if DEBUG > 1
           Serial.print(F("Released"));
         #endif
-        if (*encoder_structure == &temperature_handler)
-        {
-          Serial.println(F(" - Switching to configuration handler."));
-          *encoder_structure = &configuration_handler;
+        switch (program_status)
+        {  
+          case running:
+            Serial.println(F(" - Switching to configuration handler."));
+            *encoder_structure = &configuration_handler;
+            program_status = configuring;
+            break;
+          case configuring:
+            Serial.println(F(" - Switching to temperature handler."));
+            *encoder_structure = &temperature_handler;
+            program_status = running;
+            break;
         }
-        else
-        {
-          Serial.println(F(" - Switching to temperature handler."));
-          *encoder_structure = &temperature_handler;
-        }
+        (*encoder_structure)->function(&(*encoder_structure)->encoder_value);
+        (*encoder_structure)->encoder_last = (*encoder_structure)->encoder_value;
         break;
       case ClickEncoder::Clicked:
         #if DEBUG > 1
@@ -412,6 +426,7 @@ void handle_encoder(struct encoder_handler **encoder_structure)
         break;
     }
   }
+
 }
 
 
@@ -547,10 +562,23 @@ void init_schedule()
 
 
 
+#ifdef WITH_LCD
+void refresh_lcd()
+{
+  lcd.setCursor(0, 0);
+  lcd.print(lcd_line1);
+  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print(" ");
+  lcd.setCursor(0, 1);
+  lcd.print(lcd_line2);
+  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print(" ");
+}
+
+
 // Display status on LCD
 void display_status ()
 {
-#ifdef WITH_LCD
+  if (program_status == running)
+  {
   char str_temp[16];
   dtostrf(temperature, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
@@ -558,14 +586,16 @@ void display_status ()
   dtostrf(setpoint, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
   sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
-  lcd.setCursor(0, 0);
-  lcd.print(lcd_line1);
-  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
-  lcd.setCursor(0, 1);
-  lcd.print(lcd_line2);
-  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
-#endif
+  }
 }
+
+
+void display_welcome()
+{
+  sprintf(lcd_line1, "Welcome!");
+  sprintf(lcd_line2, "Configuration");
+};
+#endif
 
 
 
