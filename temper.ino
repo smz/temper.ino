@@ -107,11 +107,21 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
   #include <TimerOne.h>
   #include <ClickEncoder.h>
   ClickEncoder *encoder;
-  int16_t encoder_last, encoder_value;
   void timerIsr()
   {
     encoder->service();
   }
+
+  struct encoder_handler
+  {
+    int16_t encoder_value;
+    int16_t encoder_last;
+    void (*function)(int16_t *encoder_value);
+  };
+
+  struct encoder_handler temperature_handler;
+  struct encoder_handler configuration_handler;
+  struct encoder_handler *current_handler;
 #endif
 
 
@@ -143,8 +153,27 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
       Serial.println(loops);       \
       loops = 0;                   \
       }
-
 #endif
+
+
+
+void set_temperature (int16_t *encoder_value)
+{
+  *encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, *encoder_value);
+  *encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, *encoder_value);
+  setpoint = (float) *encoder_value / STEPS_PER_DEGREE;
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.print(F(" Setpoint: "));
+    Serial.println(setpoint);
+  #endif
+}
+
+
+
+void configure (int16_t *encoder_value)
+{
+}
 
 
 
@@ -238,7 +267,11 @@ void setup()
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
-  encoder_last = -1;
+  temperature_handler.function = &set_temperature;
+  temperature_handler.encoder_last = -1;
+  configuration_handler.function = &configure;
+  configuration_handler.encoder_last = -1;
+  current_handler = &temperature_handler;
 #endif
 
 
@@ -278,7 +311,7 @@ void loop()
     loops++;
   #endif
 
-  get_commands();
+  handle_encoder(&current_handler);
 
   if (current_millis - prev_millis >= POLLING_TIME)
   {
@@ -318,23 +351,15 @@ void loop()
 
 
 // User interaction
-void get_commands()
+void handle_encoder(struct encoder_handler **encoder_structure)
 {
-#ifdef WITH_ENCODER
-  // Handle encoder
-  encoder_value += encoder->getValue();
-  encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, encoder_value);
-  encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, encoder_value);
 
-  if (encoder_value != encoder_last)
+  // Handle encoder
+  (*encoder_structure)->encoder_value = (*encoder_structure)->encoder_value + encoder->getValue();
+  if ((*encoder_structure)->encoder_value != (*encoder_structure)->encoder_last)
   {
-    encoder_last = encoder_value;
-    setpoint = (float) encoder_value / STEPS_PER_DEGREE;
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Setpoint: "));
-      Serial.println(setpoint);
-    #endif
+    (*encoder_structure)->function(&(*encoder_structure)->encoder_value);
+    (*encoder_structure)->encoder_last = (*encoder_structure)->encoder_value;
   }
 
   // Handle encoder button
@@ -354,13 +379,23 @@ void get_commands()
         break;
       case ClickEncoder::Held:
         #if DEBUG > 1
-          Serial.println(F("Held - Reset"));
+          Serial.println(F("Held"));
         #endif
         break;
       case ClickEncoder::Released:
         #if DEBUG > 1
-          Serial.println(F("Released"));
+          Serial.print(F("Released"));
         #endif
+        if (*encoder_structure == &temperature_handler)
+        {
+          Serial.println(F(" - Switching to configuration handler."));
+          *encoder_structure = &configuration_handler;
+        }
+        else
+        {
+          Serial.println(F(" - Switching to temperature handler."));
+          *encoder_structure = &temperature_handler;
+        }
         break;
       case ClickEncoder::Clicked:
         #if DEBUG > 1
@@ -369,15 +404,14 @@ void get_commands()
         break;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
-          Serial.print(F("DoubleClicked"));
-          Serial.print(F(" - Acceleration "));
+          Serial.println(F("DoubleClicked"));
+          Serial.print(F("Acceleration "));
           Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
         #endif
         encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
         break;
     }
   }
-#endif
 }
 
 
@@ -476,7 +510,7 @@ void check_schedule()
   #endif
 
   setpoint = newtemp;
-  encoder_value = setpoint * STEPS_PER_DEGREE;
+  temperature_handler.encoder_value = setpoint * STEPS_PER_DEGREE;
   current_step = step;
 
 }
