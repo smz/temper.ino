@@ -35,6 +35,8 @@
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
 #define STEPS_PER_DEGREE 2
+#define SECONDS_PER_STEP 600  // 10 minutes
+#define MAX_OVERRIDE 86400    // 24 hours
 #define VALVE_ACTIVATION_TIME 15
 #define MIN_TEMP 5
 #define MAX_TEMP 25
@@ -54,6 +56,7 @@ struct tm now_tm;
 uint16_t now_tow;
 enum PossibleProgramStatus {running, configuring};
 PossibleProgramStatus program_status = running;
+time_t override_t = 0;
  
 // Schedule table
 struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
@@ -114,11 +117,13 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
     encoder->service();
   }
 
+
+  typedef (encoder_handler_function)(int16_t value, ClickEncoder::Button b);
+
   struct encoder_handler
   {
-    int16_t encoder_value;
-    int16_t encoder_last;
-    void (*function)(int16_t *encoder_value);
+    long int encoder_value;
+    encoder_handler_function *function;
   };
 
   struct encoder_handler temperature_handler;

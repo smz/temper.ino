@@ -2,25 +2,159 @@
 
 
 
-void set_temperature (int16_t *encoder_value)
+PossibleProgramStatus set_temperature (int16_t value, ClickEncoder::Button b)
 {
-  *encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, *encoder_value);
-  *encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, *encoder_value);
-  setpoint = (float) *encoder_value / STEPS_PER_DEGREE;
-  temperature_handler.encoder_last = *encoder_value;
-  temperature_handler.encoder_value = *encoder_value;
-  #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.print(F(" Setpoint: "));
-    Serial.println(setpoint);
-  #endif
+  if (b != ClickEncoder::Open)
+  {
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Pressed:
+        #if DEBUG > 1
+          Serial.println(F("Pressed - I've never seen that!"));
+        #endif
+        break;
+      case ClickEncoder::Held:
+        #if DEBUG > 1
+          Serial.println(F("Held"));
+        #endif
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+        break;
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        return(configuring);
+        break;
+      case ClickEncoder::DoubleClicked:
+        #if DEBUG > 1
+          Serial.println(F("DoubleClicked"));
+          Serial.print(F("Acceleration "));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
+        #endif
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+        break;
+    }
+  }
+
+  if (value != 0)
+  {
+    temperature_handler.encoder_value += value;
+    temperature_handler.encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+    temperature_handler.encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+    setpoint = (float) temperature_handler.encoder_value / STEPS_PER_DEGREE;
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Setpoint: "));
+      Serial.println(setpoint);
+    #endif
+  }
+  
+  return(running);
+  
 }
 
 
 
-void configure (int16_t *encoder_value)
+PossibleProgramStatus set_override (int16_t value, ClickEncoder::Button b)
 {
-  display_welcome();
+  if (b != ClickEncoder::Open)
+  {
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Pressed:
+        #if DEBUG > 1
+          Serial.println(F("Pressed - I've never seen that!"));
+        #endif
+        break;
+      case ClickEncoder::Held:
+        #if DEBUG > 1
+          Serial.println(F("Held"));
+        #endif
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        return(running);
+        break;
+      case ClickEncoder::DoubleClicked:
+        #if DEBUG > 1
+          Serial.println(F("DoubleClicked"));
+          Serial.print(F("Acceleration "));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
+        #endif
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+        break;
+    }
+  }
+
+    if (value != 0)
+    {
+      configuration_handler.encoder_value += value;
+      configuration_handler.encoder_value = max(0, configuration_handler.encoder_value);
+      configuration_handler.encoder_value = min(MAX_OVERRIDE / SECONDS_PER_STEP, configuration_handler.encoder_value);
+      override_t = configuration_handler.encoder_value * SECONDS_PER_STEP;
+      #if DEBUG > 1
+        Serial.print(timestamp);
+        Serial.print(F(" Override: "));
+        Serial.println(override_t);
+      #endif
+    }
+
+  return(configuring);
+
+}
+
+
+
+// handle_encoder
+void handle_encoder(struct encoder_handler **encoder_structure)
+{
+  PossibleProgramStatus new_program_status;
+
+  // Get encoder value
+  int16_t value =  encoder->getValue();
+
+  // Get encoder button
+  ClickEncoder::Button b = encoder->getButton();
+
+  new_program_status = (*encoder_structure)->function(value, b);
+  
+//  current_handler = *new_encoder_structure;
+
+  if (new_program_status != program_status)
+  {
+    switch (program_status)
+    {  
+      case running:
+        *encoder_structure = &configuration_handler;
+        break;
+      case configuring:
+        *encoder_structure = &temperature_handler;
+        break;
+    }
+    program_status = new_program_status;
+    #if DEBUG > 1
+    Serial.print(timestamp);
+    DUMP(program_status);
+    #endif
+  }
 }
 
 
@@ -116,9 +250,7 @@ void setup()
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
   temperature_handler.function = &set_temperature;
-  temperature_handler.encoder_last = -1;
-  configuration_handler.function = &configure;
-  configuration_handler.encoder_last = -1;
+  configuration_handler.function = &set_override;
   current_handler = &temperature_handler;
 #endif
 
@@ -185,7 +317,15 @@ void loop()
       Serial.println(F("RTC clock failed!"));
     }
 
-    check_schedule();
+    if (override_t > 0 && program_status == running)
+    {
+      override_t -= POLLING_TIME / 1000;
+      DUMP(override_t);
+    }
+    else
+    {
+      check_schedule();
+    }
 
     select_valve_status();
   }
@@ -195,80 +335,6 @@ void loop()
   refresh_lcd();
 
   // End of Loop
-}
-
-
-
-// User interaction
-void handle_encoder(struct encoder_handler **encoder_structure)
-{
-
-  // Handle encoder
-  (*encoder_structure)->encoder_value += encoder->getValue();
-
-  if ((*encoder_structure)->encoder_value != (*encoder_structure)->encoder_last)
-  {
-    (*encoder_structure)->function(&(*encoder_structure)->encoder_value);
-    (*encoder_structure)->encoder_last = (*encoder_structure)->encoder_value;
-    refresh_lcd();
-  }
-
-  // Handle encoder button
-  ClickEncoder::Button b = encoder->getButton();
-  if (b != ClickEncoder::Open)
-  {
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Button "));
-    #endif
-    switch (b)
-    {
-      case ClickEncoder::Pressed:
-        #if DEBUG > 1
-          Serial.println(F("Pressed - I've never seen that!"));
-        #endif
-        break;
-      case ClickEncoder::Held:
-        #if DEBUG > 1
-          Serial.println(F("Held"));
-        #endif
-        break;
-      case ClickEncoder::Released:
-        #if DEBUG > 1
-          Serial.print(F("Released"));
-        #endif
-        switch (program_status)
-        {  
-          case running:
-            Serial.println(F(" - Switching to configuration handler."));
-            *encoder_structure = &configuration_handler;
-            program_status = configuring;
-            break;
-          case configuring:
-            Serial.println(F(" - Switching to temperature handler."));
-            *encoder_structure = &temperature_handler;
-            program_status = running;
-            break;
-        }
-        (*encoder_structure)->function(&(*encoder_structure)->encoder_value);
-        (*encoder_structure)->encoder_last = (*encoder_structure)->encoder_value;
-        break;
-      case ClickEncoder::Clicked:
-        #if DEBUG > 1
-          Serial.println(F("Clicked"));
-        #endif
-        break;
-      case ClickEncoder::DoubleClicked:
-        #if DEBUG > 1
-          Serial.println(F("DoubleClicked"));
-          Serial.print(F("Acceleration "));
-          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
-        #endif
-        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-        break;
-    }
-  }
-
 }
 
 
@@ -419,24 +485,25 @@ void refresh_lcd()
 // Display status on LCD
 void display_status ()
 {
-  if (program_status == running)
+  switch (program_status)
   {
-  char str_temp[16];
-  dtostrf(temperature, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
-  dtostrf(setpoint, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+    case running :
+      char str_temp[16];
+      dtostrf(temperature, 6, 2, str_temp);
+      if (strlen(str_temp) > 6) str_temp[6] = '\0';
+      sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
+      dtostrf(setpoint, 6, 2, str_temp);
+      if (strlen(str_temp) > 6) str_temp[6] = '\0';
+      sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+      break;
+    case configuring :
+      uint16_t ovh = override_t / 3600;
+      uint16_t ovm = (override_t - ovh * 3600L) / 60;
+      sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
+      sprintf(lcd_line2, "");
+      break;
   }
 }
-
-
-void display_welcome()
-{
-  sprintf(lcd_line1, "Welcome!");
-  sprintf(lcd_line2, "Configuration");
-};
 #endif
 
 
