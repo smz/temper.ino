@@ -7,7 +7,7 @@
 //  3 Debug actions, Rotary Encoder and scheduler
 // 99 Debug all
 #define DEBUG 3
-
+#include "debug.h"
 
 // Project configuration parameters
 #define DS3231
@@ -44,6 +44,15 @@
 
 
 // Global variables
+#if DEBUG > 90
+  unsigned long loops = 0;
+  #define PrintLoops() {           \
+      Serial.print(timestamp);     \
+      Serial.print(F(" Loops: ")); \
+      Serial.println(loops);       \
+      loops = 0;                   \
+      }
+#endif
 float setpoint;
 float temperature;
 bool valve_target;
@@ -54,8 +63,6 @@ unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
 uint16_t now_tow;
-enum PossibleProgramStatus {running, configuring};
-PossibleProgramStatus program_status = running;
 time_t override_t = 0;
  
 // Schedule table
@@ -118,46 +125,19 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
   }
 
 
-  typedef (encoder_handler_function)(int16_t value, ClickEncoder::Button b);
+  typedef (encoder_function_t)(int16_t value, ClickEncoder::Button b);
+  typedef (display_function_t)();
 
   struct encoder_handler
   {
     long int encoder_value;
-    encoder_handler_function *function;
+    encoder_function_t *function;
+    encoder_function_t *next_function;
+    encoder_function_t *prev_function;
+    display_function_t *display_function;
   };
 
   struct encoder_handler temperature_handler;
   struct encoder_handler configuration_handler;
-  struct encoder_handler *current_handler;
-#endif
-
-
-// Support stuff for debug...
-#if DEBUG > 0
-  #define DUMP(x)           \
-    Serial.print(" ");      \
-    Serial.print(#x);       \
-    Serial.print(F(" = ")); \
-    Serial.println(x);
-
-  #define DUMP_TM(x)  \
-    DUMP(x.tm_year);  \
-    DUMP(x.tm_mon);   \
-    DUMP(x.tm_mday);  \
-    DUMP(x.tm_hour);  \
-    DUMP(x.tm_min);   \
-    DUMP(x.tm_sec);   \
-    DUMP(x.tm_isdst); \
-    DUMP(x.tm_yday);  \
-    DUMP(x.tm_wday);
-#endif
-
-#if DEBUG > 90
-  unsigned long loops = 0;
-  #define PrintLoops() {           \
-      Serial.print(timestamp);     \
-      Serial.print(F(" Loops: ")); \
-      Serial.println(loops);       \
-      loops = 0;                   \
-      }
+  struct encoder_handler *current_handler = &temperature_handler;
 #endif

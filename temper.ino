@@ -2,7 +2,7 @@
 
 
 
-PossibleProgramStatus set_temperature (int16_t value, ClickEncoder::Button b)
+void set_temperature (int16_t value, ClickEncoder::Button b)
 {
   if (b != ClickEncoder::Open)
   {
@@ -31,8 +31,8 @@ PossibleProgramStatus set_temperature (int16_t value, ClickEncoder::Button b)
         #if DEBUG > 1
           Serial.println(F("Clicked"));
         #endif
-        return(configuring);
-        break;
+        current_handler = &configuration_handler;
+        return;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
           Serial.println(F("DoubleClicked"));
@@ -56,14 +56,12 @@ PossibleProgramStatus set_temperature (int16_t value, ClickEncoder::Button b)
       Serial.println(setpoint);
     #endif
   }
-  
-  return(running);
-  
+
 }
 
 
 
-PossibleProgramStatus set_override (int16_t value, ClickEncoder::Button b)
+void set_override (int16_t value, ClickEncoder::Button b)
 {
   if (b != ClickEncoder::Open)
   {
@@ -91,8 +89,8 @@ PossibleProgramStatus set_override (int16_t value, ClickEncoder::Button b)
         #if DEBUG > 1
           Serial.println(F("Clicked"));
         #endif
-        return(running);
-        break;
+        current_handler = &temperature_handler;
+        return;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
           Serial.println(F("DoubleClicked"));
@@ -117,44 +115,21 @@ PossibleProgramStatus set_override (int16_t value, ClickEncoder::Button b)
       #endif
     }
 
-  return(configuring);
-
 }
 
 
 
 // handle_encoder
-void handle_encoder(struct encoder_handler **encoder_structure)
+void handle_encoder()
 {
-  PossibleProgramStatus new_program_status;
-
   // Get encoder value
   int16_t value =  encoder->getValue();
 
   // Get encoder button
   ClickEncoder::Button b = encoder->getButton();
 
-  new_program_status = (*encoder_structure)->function(value, b);
-  
-//  current_handler = *new_encoder_structure;
-
-  if (new_program_status != program_status)
-  {
-    switch (program_status)
-    {  
-      case running:
-        *encoder_structure = &configuration_handler;
-        break;
-      case configuring:
-        *encoder_structure = &temperature_handler;
-        break;
-    }
-    program_status = new_program_status;
-    #if DEBUG > 1
-    Serial.print(timestamp);
-    DUMP(program_status);
-    #endif
-  }
+  // Perform function
+  current_handler->function(value, b);
 }
 
 
@@ -249,9 +224,12 @@ void setup()
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
+
   temperature_handler.function = &set_temperature;
+  temperature_handler.display_function = &display_temperature;
+
   configuration_handler.function = &set_override;
-  current_handler = &temperature_handler;
+  configuration_handler.display_function = &display_override;
 #endif
 
 
@@ -291,7 +269,7 @@ void loop()
     loops++;
   #endif
 
-  handle_encoder(&current_handler);
+  handle_encoder();
 
   if (current_millis - prev_millis >= POLLING_TIME)
   {
@@ -317,7 +295,7 @@ void loop()
       Serial.println(F("RTC clock failed!"));
     }
 
-    if (override_t > 0 && program_status == running)
+    if (override_t > 0 && current_handler->function != &set_override)
     {
       override_t -= POLLING_TIME / 1000;
       DUMP(override_t);
@@ -331,7 +309,7 @@ void loop()
   }
 
   // Display status on LCD
-  display_status();
+  current_handler->display_function();
   refresh_lcd();
 
   // End of Loop
@@ -482,39 +460,25 @@ void refresh_lcd()
 }
 
 
-// Display status on LCD
-void display_status ()
+// Display temperature on LCD
+void display_temperature ()
 {
-  switch (program_status)
-  {
-    case running :
-      char str_temp[16];
-      dtostrf(temperature, 6, 2, str_temp);
-      if (strlen(str_temp) > 6) str_temp[6] = '\0';
-      sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
-      dtostrf(setpoint, 6, 2, str_temp);
-      if (strlen(str_temp) > 6) str_temp[6] = '\0';
-      sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
-      break;
-    case configuring :
-      uint16_t ovh = override_t / 3600;
-      uint16_t ovm = (override_t - ovh * 3600L) / 60;
-      sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
-      sprintf(lcd_line2, "");
-      break;
-  }
+  char str_temp[16];
+  dtostrf(temperature, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
+  dtostrf(setpoint, 6, 2, str_temp);
+  if (strlen(str_temp) > 6) str_temp[6] = '\0';
+  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+}
+
+
+// Display override on LCD
+void display_override ()
+{
+  uint16_t ovh = override_t / 3600;
+  uint16_t ovm = (override_t - ovh * 3600L) / 60;
+  sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
+  sprintf(lcd_line2, "");
 }
 #endif
-
-
-
-void shutdown()
-{
-  digitalWrite(VALVE_PIN, LOW);
-  valve_status = false;
-  valve_target = false;
-  temperature = 0;
-  setpoint = 0;
-  display_status();
-  while (true);
-}
