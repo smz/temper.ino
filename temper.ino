@@ -119,21 +119,6 @@ void set_override (int16_t value, ClickEncoder::Button b)
 
 
 
-// handle_encoder
-void handle_encoder()
-{
-  // Get encoder value
-  int16_t value =  encoder->getValue();
-
-  // Get encoder button
-  ClickEncoder::Button b = encoder->getButton();
-
-  // Perform function
-  current_handler->function(value, b);
-}
-
-
-
 // SETUP
 void setup()
 {
@@ -144,10 +129,8 @@ void setup()
     Serial.println(F("Setup started."));
   #endif
 
-#ifdef WITH_LCD
   // Setup LCD
   lcd.begin(16, 2);
-#endif
 
 #ifdef DS3231
   // Setup RTC
@@ -219,7 +202,6 @@ void setup()
 #endif
 
 
-#ifdef WITH_ENCODER
   // Setup ENCODER
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
@@ -230,7 +212,6 @@ void setup()
 
   configuration_handler.function = &set_override;
   configuration_handler.display_function = &display_override;
-#endif
 
 
   // Initialize global variables
@@ -269,7 +250,7 @@ void loop()
     loops++;
   #endif
 
-  handle_encoder();
+  current_handler->function(encoder->getValue(), encoder->getButton());
 
   if (current_millis - prev_millis >= POLLING_TIME)
   {
@@ -310,7 +291,6 @@ void loop()
 
   // Display status on LCD
   current_handler->display_function();
-  refresh_lcd();
 
   // End of Loop
 }
@@ -448,7 +428,6 @@ void init_schedule()
 
 
 
-#ifdef WITH_LCD
 void refresh_lcd()
 {
   lcd.setCursor(0, 0);
@@ -470,6 +449,7 @@ void display_temperature ()
   dtostrf(setpoint, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
   sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+  refresh_lcd();
 }
 
 
@@ -480,5 +460,5 @@ void display_override ()
   uint16_t ovm = (override_t - ovh * 3600L) / 60;
   sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
   sprintf(lcd_line2, "");
+  refresh_lcd();
 }
-#endif
