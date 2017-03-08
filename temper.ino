@@ -1,150 +1,136 @@
-#include <time.h>
-
-// DEBUG
-//  0 No debug
-//  1 Debug actions
-//  2 Debug actions and Rotary Encoder
-//  3 Debug actions, Rotary Encoder and scheduler
-// 99 Debug all
-#define DEBUG 3
+#include "temperino.h"
 
 
-// Project configuration parameters
-#define DS3231
-#undef  DS3231_TEMP
-#define MCP9808_TEMP
-#define WITH_LCD
-#define WITH_ENCODER
-#define RESET_RTC_TIME
-#undef  RTC_SOFTWARE_WIRE
 
-
-// Connections
-#define LCD_PINS  7,  8,  9, 10, 11, 12
-//      LCD_PINS RS, EN, D4, D5, D6, D7
-#define RTC_SOFTWARE_WIRE_SDA PIN_A0
-#define RTC_SOFTWARE_WIRE_SCL PIN_A1
-#define VALVE_PIN 13
-#define ENCODER_PINS 2, 3, 4
-
-
-// Operative parameters
-#define SERIAL_SPEED 57600
-#define TIMEZONE (1 * ONE_HOUR)
-#define TEMP_HYSTERESIS 0.5
-#define POLLING_TIME 1000
-#define ENCODER_TIMER 1000
-#define STEPS_PER_DEGREE 2
-#define VALVE_ACTIVATION_TIME 15
-#define MIN_TEMP 5
-#define MAX_TEMP 25
-#define MAX_WEEKLY_STEPS 70
-
-
-// Global variables
-float setpoint;
-float temperature;
-bool valve_target;
-bool valve_status;
-time_t prev_valve_time;
-char timestamp[20];
-unsigned long prev_millis = 0;
-time_t now;
-struct tm now_tm;
-uint16_t now_tow;
-
-// Schedule table
-struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
-uint8_t current_step = MAX_WEEKLY_STEPS + 1;
-
-
-#ifdef WITH_LCD
-  #include <LiquidCrystal.h>
-  char lcd_line1[17];
-  char lcd_line2[17];
-  LiquidCrystal lcd(LCD_PINS);
-#endif
-
-
-#ifndef RTC_SOFTWARE_WIRE
-  #include <Wire.h>
-  #ifdef DS3231
-    #include <RtcDS3231.h>
-    RtcDS3231<TwoWire> Rtc(Wire);
-  #else
-    #include <RtcDS1307.h>
-    RtcDS1307<TwoWire> Rtc(Wire);
-  #endif
-#else
-  #include <SoftwareWire.h>
-  #ifdef DS3231
-    #include <RtcDS3231.h>
-    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
-    RtcDS3231<SoftwareWire> Rtc(myWire);
-  #else
-    #include <RtcDS1307.h>
-    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
-    RtcDS1307<SoftwareWire> Rtc(myWire);
-  #endif
-#endif
-
-
-#ifdef MCP9808_TEMP
-  // Adafruit MCP9808 i2c temperature sensor
-  // See: http://www.adafruit.com/products/1782
-  #define MCP9808_ADDRESS 0x18
-  #include "Adafruit_MCP9808.h"
-  Adafruit_MCP9808 tempsensor = Adafruit_MCP9808();
-#endif
-
-
-#ifdef WITH_ENCODER
-  // Rotary Encoder
-  // Uses the ClickEncoder library by 0xPIT
-  // See: https://github.com/0xPIT/encoder
-  // ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
-  // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
-  #include <TimerOne.h>
-  #include <ClickEncoder.h>
-  ClickEncoder *encoder;
-  int16_t encoder_last, encoder_value;
-  void timerIsr()
+void set_temperature (int16_t value, ClickEncoder::Button b)
+{
+  if (b != ClickEncoder::Open)
   {
-    encoder->service();
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Pressed:
+        #if DEBUG > 1
+          Serial.println(F("Pressed - I've never seen that!"));
+        #endif
+        break;
+      case ClickEncoder::Held:
+        #if DEBUG > 1
+          Serial.println(F("Held"));
+        #endif
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+        break;
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        current_handler = &configuration_handler;
+        return;
+      case ClickEncoder::DoubleClicked:
+        #if DEBUG > 1
+          Serial.println(F("DoubleClicked"));
+          Serial.print(F("Acceleration "));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
+        #endif
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+        break;
+    }
   }
-#endif
+
+  if (value != 0)
+  {
+    temperature_handler.encoder_value += value;
+    temperature_handler.encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+    temperature_handler.encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+    setpoint = (float) temperature_handler.encoder_value / STEPS_PER_DEGREE;
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Setpoint: "));
+      Serial.println(setpoint);
+    #endif
+  }
+
+}
 
 
-// Support stuff for debug...
-#if DEBUG > 0
-  #define DUMP(x)           \
-    Serial.print(" ");      \
-    Serial.print(#x);       \
-    Serial.print(F(" = ")); \
-    Serial.println(x);
 
-  #define DUMP_TM(x)  \
-    DUMP(x.tm_year);  \
-    DUMP(x.tm_mon);   \
-    DUMP(x.tm_mday);  \
-    DUMP(x.tm_hour);  \
-    DUMP(x.tm_min);   \
-    DUMP(x.tm_sec);   \
-    DUMP(x.tm_isdst); \
-    DUMP(x.tm_yday);  \
-    DUMP(x.tm_wday);
-#endif
+void set_override (int16_t value, ClickEncoder::Button b)
+{
+  if (b != ClickEncoder::Open)
+  {
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Pressed:
+        #if DEBUG > 1
+          Serial.println(F("Pressed - I've never seen that!"));
+        #endif
+        break;
+      case ClickEncoder::Held:
+        #if DEBUG > 1
+          Serial.println(F("Held"));
+        #endif
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        current_handler = &temperature_handler;
+        return;
+      case ClickEncoder::DoubleClicked:
+        #if DEBUG > 1
+          Serial.println(F("DoubleClicked"));
+          Serial.print(F("Acceleration "));
+          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
+        #endif
+        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+        break;
+    }
+  }
 
-#if DEBUG > 90
-  unsigned long loops = 0;
-  #define PrintLoops() {           \
-      Serial.print(timestamp);     \
-      Serial.print(F(" Loops: ")); \
-      Serial.println(loops);       \
-      loops = 0;                   \
-      }
+    if (value != 0)
+    {
+      configuration_handler.encoder_value += value;
+      configuration_handler.encoder_value = max(0, configuration_handler.encoder_value);
+      configuration_handler.encoder_value = min(MAX_OVERRIDE / SECONDS_PER_STEP, configuration_handler.encoder_value);
+      override_t = configuration_handler.encoder_value * SECONDS_PER_STEP;
+      #if DEBUG > 1
+        Serial.print(timestamp);
+        Serial.print(F(" Override: "));
+        Serial.println(override_t);
+      #endif
+    }
 
-#endif
+}
+
+
+
+// handle_encoder
+void handle_encoder()
+{
+  // Get encoder value
+  int16_t value =  encoder->getValue();
+
+  // Get encoder button
+  ClickEncoder::Button b = encoder->getButton();
+
+  // Perform function
+  current_handler->function(value, b);
+}
 
 
 
@@ -238,7 +224,12 @@ void setup()
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
-  encoder_last = -1;
+
+  temperature_handler.function = &set_temperature;
+  temperature_handler.display_function = &display_temperature;
+
+  configuration_handler.function = &set_override;
+  configuration_handler.display_function = &display_override;
 #endif
 
 
@@ -278,7 +269,7 @@ void loop()
     loops++;
   #endif
 
-  get_commands();
+  handle_encoder();
 
   if (current_millis - prev_millis >= POLLING_TIME)
   {
@@ -304,80 +295,24 @@ void loop()
       Serial.println(F("RTC clock failed!"));
     }
 
-    check_schedule();
+    if (override_t > 0 && current_handler->function != &set_override)
+    {
+      override_t -= POLLING_TIME / 1000;
+      DUMP(override_t);
+    }
+    else
+    {
+      check_schedule();
+    }
 
     select_valve_status();
   }
 
   // Display status on LCD
-  display_status();
+  current_handler->display_function();
+  refresh_lcd();
 
   // End of Loop
-}
-
-
-
-// User interaction
-void get_commands()
-{
-#ifdef WITH_ENCODER
-  // Handle encoder
-  encoder_value += encoder->getValue();
-  encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, encoder_value);
-  encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, encoder_value);
-
-  if (encoder_value != encoder_last)
-  {
-    encoder_last = encoder_value;
-    setpoint = (float) encoder_value / STEPS_PER_DEGREE;
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Setpoint: "));
-      Serial.println(setpoint);
-    #endif
-  }
-
-  // Handle encoder button
-  ClickEncoder::Button b = encoder->getButton();
-  if (b != ClickEncoder::Open)
-  {
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Button "));
-    #endif
-    switch (b)
-    {
-      case ClickEncoder::Pressed:
-        #if DEBUG > 1
-          Serial.println(F("Pressed - I've never seen that!"));
-        #endif
-        break;
-      case ClickEncoder::Held:
-        #if DEBUG > 1
-          Serial.println(F("Held - Reset"));
-        #endif
-        break;
-      case ClickEncoder::Released:
-        #if DEBUG > 1
-          Serial.println(F("Released"));
-        #endif
-        break;
-      case ClickEncoder::Clicked:
-        #if DEBUG > 1
-          Serial.println(F("Clicked"));
-        #endif
-        break;
-      case ClickEncoder::DoubleClicked:
-        #if DEBUG > 1
-          Serial.print(F("DoubleClicked"));
-          Serial.print(F(" - Acceleration "));
-          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
-        #endif
-        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-        break;
-    }
-  }
-#endif
 }
 
 
@@ -476,7 +411,7 @@ void check_schedule()
   #endif
 
   setpoint = newtemp;
-  encoder_value = setpoint * STEPS_PER_DEGREE;
+  temperature_handler.encoder_value = setpoint * STEPS_PER_DEGREE;
   current_step = step;
 
 }
@@ -513,10 +448,21 @@ void init_schedule()
 
 
 
-// Display status on LCD
-void display_status ()
-{
 #ifdef WITH_LCD
+void refresh_lcd()
+{
+  lcd.setCursor(0, 0);
+  lcd.print(lcd_line1);
+  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print(" ");
+  lcd.setCursor(0, 1);
+  lcd.print(lcd_line2);
+  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print(" ");
+}
+
+
+// Display temperature on LCD
+void display_temperature ()
+{
   char str_temp[16];
   dtostrf(temperature, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
@@ -524,24 +470,15 @@ void display_status ()
   dtostrf(setpoint, 6, 2, str_temp);
   if (strlen(str_temp) > 6) str_temp[6] = '\0';
   sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
-  lcd.setCursor(0, 0);
-  lcd.print(lcd_line1);
-  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print("");
-  lcd.setCursor(0, 1);
-  lcd.print(lcd_line2);
-  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print("");
-#endif
 }
 
 
-
-void shutdown()
+// Display override on LCD
+void display_override ()
 {
-  digitalWrite(VALVE_PIN, LOW);
-  valve_status = false;
-  valve_target = false;
-  temperature = 0;
-  setpoint = 0;
-  display_status();
-  while (true);
+  uint16_t ovh = override_t / 3600;
+  uint16_t ovm = (override_t - ovh * 3600L) / 60;
+  sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
+  sprintf(lcd_line2, "");
 }
+#endif
