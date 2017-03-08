@@ -1,122 +1,108 @@
 #include "temperino.h"
 
 
-
-void set_temperature (int16_t value, ClickEncoder::Button b)
+void NullFunction()
 {
-  if (b != ClickEncoder::Open)
-  {
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Button "));
-    #endif
-    switch (b)
-    {
-      case ClickEncoder::Pressed:
-        #if DEBUG > 1
-          Serial.println(F("Pressed - I've never seen that!"));
-        #endif
-        break;
-      case ClickEncoder::Held:
-        #if DEBUG > 1
-          Serial.println(F("Held"));
-        #endif
-        break;
-      case ClickEncoder::Released:
-        #if DEBUG > 1
-          Serial.println(F("Released"));
-        #endif
-        break;
-      case ClickEncoder::Clicked:
-        #if DEBUG > 1
-          Serial.println(F("Clicked"));
-        #endif
-        current_handler = &configuration_handler;
-        return;
-      case ClickEncoder::DoubleClicked:
-        #if DEBUG > 1
-          Serial.println(F("DoubleClicked"));
-          Serial.print(F("Acceleration "));
-          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
-        #endif
-        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-        break;
-    }
-  }
-
-  if (value != 0)
-  {
-    temperature_handler.encoder_value += value;
-    temperature_handler.encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
-    temperature_handler.encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
-    setpoint = (float) temperature_handler.encoder_value / STEPS_PER_DEGREE;
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Setpoint: "));
-      Serial.println(setpoint);
-    #endif
-  }
-
 }
 
 
-
-void set_override (int16_t value, ClickEncoder::Button b)
+void SwitchToOverride()
 {
-  if (b != ClickEncoder::Open)
-  {
-    #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Button "));
-    #endif
-    switch (b)
-    {
-      case ClickEncoder::Pressed:
-        #if DEBUG > 1
-          Serial.println(F("Pressed - I've never seen that!"));
-        #endif
-        break;
-      case ClickEncoder::Held:
-        #if DEBUG > 1
-          Serial.println(F("Held"));
-        #endif
-        break;
-      case ClickEncoder::Released:
-        #if DEBUG > 1
-          Serial.println(F("Released"));
-        #endif
-      case ClickEncoder::Clicked:
-        #if DEBUG > 1
-          Serial.println(F("Clicked"));
-        #endif
-        current_handler = &temperature_handler;
-        return;
-      case ClickEncoder::DoubleClicked:
-        #if DEBUG > 1
-          Serial.println(F("DoubleClicked"));
-          Serial.print(F("Acceleration "));
-          Serial.println((encoder->getAccelerationEnabled()) ? F("OFF") : F("ON"));
-        #endif
-        encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-        break;
-    }
-  }
+  current_handler = &configuration_handler;
+}
 
+
+void SwitchToTemperature()
+{
+  current_handler = &temperature_handler;
+}
+
+
+void ToggleButtonAcceleration()
+{
+  encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+  #if DEBUG > 1
+    Serial.print(F("Acceleration "));
+    Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
+  #endif
+}
+
+
+void set_temperature (int16_t value)
+{
+  temperature_handler.encoder_value += value;
+  temperature_handler.encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+  temperature_handler.encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
+  setpoint = (float) temperature_handler.encoder_value / STEPS_PER_DEGREE;
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.print(F(" Setpoint: "));
+    Serial.println(setpoint);
+  #endif
+}
+
+
+void set_override (int16_t value)
+{
+  configuration_handler.encoder_value += value;
+  configuration_handler.encoder_value = max(0, configuration_handler.encoder_value);
+  configuration_handler.encoder_value = min(MAX_OVERRIDE / SECONDS_PER_STEP, configuration_handler.encoder_value);
+  override_t = configuration_handler.encoder_value * SECONDS_PER_STEP;
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.print(F(" Override: "));
+    Serial.println(override_t);
+  #endif
+}
+
+
+void EncoderDispatcher()
+{
+  int16_t value = encoder->getValue();
+  ClickEncoder::Button b = encoder->getButton();
+
+  if (b == ClickEncoder::Open)
+  {
     if (value != 0)
     {
-      configuration_handler.encoder_value += value;
-      configuration_handler.encoder_value = max(0, configuration_handler.encoder_value);
-      configuration_handler.encoder_value = min(MAX_OVERRIDE / SECONDS_PER_STEP, configuration_handler.encoder_value);
-      override_t = configuration_handler.encoder_value * SECONDS_PER_STEP;
-      #if DEBUG > 1
-        Serial.print(timestamp);
-        Serial.print(F(" Override: "));
-        Serial.println(override_t);
-      #endif
+      current_handler->EncoderRotatedFunction(value);
     }
-
+  }
+  else
+  {
+    #if DEBUG > 1
+      Serial.print(timestamp);
+      Serial.print(F(" Button "));
+    #endif
+    switch (b)
+    {
+      case ClickEncoder::Clicked:
+        #if DEBUG > 1
+          Serial.println(F("Clicked"));
+        #endif
+        current_handler->ButtonClickedFunction();
+        break;
+      case ClickEncoder::DoubleClicked:
+        #if DEBUG > 1
+          Serial.println(F("DoubleClicked"));
+        #endif
+        current_handler->ButtonDoubleClickedFunction();
+        break;
+      case ClickEncoder::Held:
+        #if DEBUG > 1
+          Serial.println(F("Held"));
+        #endif
+        current_handler->ButtonHeldFunction();
+        break;
+      case ClickEncoder::Released:
+        #if DEBUG > 1
+          Serial.println(F("Released"));
+        #endif
+        current_handler->ButtonReleasedFunction();
+        break;
+    }
+  }
 }
-
 
 
 // SETUP
@@ -207,11 +193,20 @@ void setup()
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
 
-  temperature_handler.function = &set_temperature;
-  temperature_handler.display_function = &display_temperature;
-
-  configuration_handler.function = &set_override;
-  configuration_handler.display_function = &display_override;
+  // Configure encoder handlers
+  temperature_handler.EncoderRotatedFunction = &set_temperature;
+  temperature_handler.DisplayFunction = &display_temperature;
+  temperature_handler.ButtonClickedFunction = &SwitchToOverride;  
+  temperature_handler.ButtonDoubleClickedFunction = &ToggleButtonAcceleration;
+  temperature_handler.ButtonHeldFunction = &NullFunction;  
+  temperature_handler.ButtonReleasedFunction = &NullFunction;  
+  
+  configuration_handler.EncoderRotatedFunction = &set_override;
+  configuration_handler.DisplayFunction = &display_override;
+  configuration_handler.ButtonClickedFunction = &SwitchToTemperature;  
+  configuration_handler.ButtonDoubleClickedFunction = &ToggleButtonAcceleration;
+  configuration_handler.ButtonHeldFunction = &NullFunction;  
+  configuration_handler.ButtonReleasedFunction = &NullFunction;  
 
 
   // Initialize global variables
@@ -250,7 +245,7 @@ void loop()
     loops++;
   #endif
 
-  current_handler->function(encoder->getValue(), encoder->getButton());
+  EncoderDispatcher();
 
   if (current_millis - prev_millis >= POLLING_TIME)
   {
@@ -276,7 +271,7 @@ void loop()
       Serial.println(F("RTC clock failed!"));
     }
 
-    if (override_t > 0 && current_handler->function != &set_override)
+    if (override_t > 0 && current_handler != &configuration_handler)
     {
       override_t -= POLLING_TIME / 1000;
       DUMP(override_t);
@@ -290,7 +285,7 @@ void loop()
   }
 
   // Display status on LCD
-  current_handler->display_function();
+  current_handler->DisplayFunction();
 
   // End of Loop
 }

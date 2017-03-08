@@ -13,8 +13,6 @@
 #define DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
-#define WITH_LCD
-#define WITH_ENCODER
 #define RESET_RTC_TIME
 #undef  RTC_SOFTWARE_WIRE
 
@@ -69,13 +67,11 @@ time_t override_t = 0;
 struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
 uint8_t current_step = MAX_WEEKLY_STEPS + 1;
 
-
-#ifdef WITH_LCD
-  #include <LiquidCrystal.h>
-  char lcd_line1[17];
-  char lcd_line2[17];
-  LiquidCrystal lcd(LCD_PINS);
-#endif
+// LCD
+#include <LiquidCrystal.h>
+char lcd_line1[17];
+char lcd_line2[17];
+LiquidCrystal lcd(LCD_PINS);
 
 
 #ifndef RTC_SOFTWARE_WIRE
@@ -110,34 +106,35 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
 #endif
 
 
-#ifdef WITH_ENCODER
-  // Rotary Encoder
-  // Uses the ClickEncoder library by 0xPIT
-  // See: https://github.com/0xPIT/encoder
-  // ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
-  // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
-  #include <TimerOne.h>
-  #include <ClickEncoder.h>
-  ClickEncoder *encoder;
-  void timerIsr()
-  {
-    encoder->service();
-  }
+// Rotary Encoder
+// Uses the ClickEncoder library by 0xPIT
+// See: https://github.com/0xPIT/encoder
+// ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
+// as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
+#include <TimerOne.h>
+#include <ClickEncoder.h>
+ClickEncoder *encoder;
+void timerIsr()
+{
+  encoder->service();
+}
 
 
-  typedef (encoder_function_t)(int16_t value, ClickEncoder::Button b);
-  typedef (display_function_t)();
+typedef (EncoderRotatedFunction_t)(int16_t value);
+typedef (DisplayFunction_t)();
+typedef (ButtonFunction_t)();
 
-  struct encoder_handler
-  {
-    long int encoder_value;
-    encoder_function_t *function;
-    encoder_function_t *next_function;
-    encoder_function_t *prev_function;
-    display_function_t *display_function;
-  };
+struct encoder_handler
+{
+  long int encoder_value;
+  EncoderRotatedFunction_t *EncoderRotatedFunction;
+  DisplayFunction_t *DisplayFunction;
+  ButtonFunction_t *ButtonClickedFunction;
+  ButtonFunction_t *ButtonDoubleClickedFunction;
+  ButtonFunction_t *ButtonHeldFunction;
+  ButtonFunction_t *ButtonReleasedFunction;
+};
 
-  struct encoder_handler temperature_handler;
-  struct encoder_handler configuration_handler;
-  struct encoder_handler *current_handler = &temperature_handler;
-#endif
+struct encoder_handler temperature_handler;
+struct encoder_handler configuration_handler;
+struct encoder_handler *current_handler = &temperature_handler;

@@ -1,4 +1,5 @@
-// Support stuff for debug...
+// Support macros for debugging
+
 #if DEBUG > 0
   #define DUMP(x)           \
     Serial.print(" ");      \
