@@ -60,6 +60,7 @@ char timestamp[20];
 unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
+struct tm temp_tm;
 uint16_t now_tow;
  
 // Schedule table
@@ -139,4 +140,10 @@ struct EncoderHandler_t
 
 struct EncoderHandler_t TemperatureHandler;
 struct EncoderHandler_t OverrideTimeHandler;
+struct EncoderHandler_t SetYearHandler;
+struct EncoderHandler_t SetMonthHandler;
+struct EncoderHandler_t SetDayHandler;
+struct EncoderHandler_t SetHoursHandler;
+struct EncoderHandler_t SetMinutesHandler;
+struct EncoderHandler_t SetSecondsHandler;
 struct EncoderHandler_t *ActiveHandler = &TemperatureHandler;

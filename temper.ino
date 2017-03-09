@@ -6,6 +6,56 @@ void NullFunction()
 }
 
 
+void SwitchToSetTime()
+{
+  localtime_r(&now, &temp_tm);
+  SetYearHandler.value    = temp_tm.tm_year;
+  SetMonthHandler.value   = temp_tm.tm_mon; 
+  SetDayHandler.value     = temp_tm.tm_mday;
+  SetHoursHandler.value   = temp_tm.tm_hour;
+  SetMinutesHandler.value = temp_tm.tm_min;
+  SetSecondsHandler.value = temp_tm.tm_sec;
+  ActiveHandler = &SetYearHandler;
+}
+void SwitchToSetMonth()
+{
+  ActiveHandler = &SetMonthHandler;
+}
+void SwitchToSetDay()
+{
+  ActiveHandler = &SetDayHandler;
+}
+void SwitchToSetHours()
+{
+  ActiveHandler = &SetHoursHandler;
+}
+void SwitchToSetMinutes()
+{
+  ActiveHandler = &SetMinutesHandler;
+}
+void SwitchToSetSeconds()
+{
+  ActiveHandler = &SetSecondsHandler;
+}
+void SetTime()
+{
+  #if DEBUG > 0
+    Serial.print(timestamp);
+  #endif
+  time_t temp = mktime(&temp_tm);
+  Rtc.SetTime(&temp);
+  now = Rtc.GetTime();
+  localtime_r(&now, &now_tm);
+  strcpy(timestamp, isotime(&now_tm));
+  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
+  #if DEBUG > 0
+    Serial.print(F(" New time is: "));
+    Serial.println(timestamp);
+  #endif
+  SwitchToTemperature();
+}
+
+
 void SwitchToOverrideTime()
 {
   // Adjust the actual value (which is decremented by the time running in steps of 1 seconds)
@@ -192,26 +242,85 @@ void setup()
   Timer1.attachInterrupt(timerIsr);
 
   // Configure handlers
-  TemperatureHandler.Min =                          TEMP_MIN;
-  TemperatureHandler.Max =                          TEMP_MAX;
-  TemperatureHandler.Increment =                    TEMP_INCREMENT;
-  TemperatureHandler.EncoderRotatedFunction =       &UpdateActiveHandlerValue;
-  TemperatureHandler.DisplayFunction =              &DisplayTemperature;
-  TemperatureHandler.ButtonClickedFunction =        &SwitchToOverrideTime;  
-  TemperatureHandler.ButtonDoubleClickedFunction =  &NullFunction;
-  TemperatureHandler.ButtonHeldFunction =           &NullFunction;  
-  TemperatureHandler.ButtonReleasedFunction =       &ToggleButtonAcceleration;  
+  TemperatureHandler.Min =                         TEMP_MIN;
+  TemperatureHandler.Max =                         TEMP_MAX;
+  TemperatureHandler.Increment =                   TEMP_INCREMENT;
+  TemperatureHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  TemperatureHandler.DisplayFunction =             &DisplayTemperature;
+  TemperatureHandler.ButtonClickedFunction =       &SwitchToOverrideTime;  
+  TemperatureHandler.ButtonDoubleClickedFunction = &NullFunction;
+  TemperatureHandler.ButtonHeldFunction =          &NullFunction;  
+  TemperatureHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;  
   
   OverrideTimeHandler.Min =                         0;
   OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
   OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
   OverrideTimeHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
   OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
-  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;  
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToSetTime;  
   OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
   OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;  
   OverrideTimeHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;  
 
+  SetYearHandler.Min =                         117;
+  SetYearHandler.Max =                         199;
+  SetYearHandler.Increment =                   1;
+  SetYearHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetYearHandler.DisplayFunction =             &DisplayDateSetting;
+  SetYearHandler.ButtonClickedFunction =       &SwitchToSetMonth;
+  SetYearHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetYearHandler.ButtonHeldFunction =          &NullFunction;
+  SetYearHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+
+  SetMonthHandler.Min =                         0;
+  SetMonthHandler.Max =                         11;
+  SetMonthHandler.Increment =                   1;
+  SetMonthHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetMonthHandler.DisplayFunction =             &DisplayDateSetting;
+  SetMonthHandler.ButtonClickedFunction =       &SwitchToSetDay;
+  SetMonthHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetMonthHandler.ButtonHeldFunction =          &NullFunction;
+  SetMonthHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+
+  SetDayHandler.Min =                         1;
+  SetDayHandler.Max =                         31;
+  SetDayHandler.Increment =                   1;
+  SetDayHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetDayHandler.DisplayFunction =             &DisplayDateSetting;
+  SetDayHandler.ButtonClickedFunction =       &SwitchToSetHours;
+  SetDayHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetDayHandler.ButtonHeldFunction =          &NullFunction;
+  SetDayHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+
+  SetHoursHandler.Min =                         0;
+  SetHoursHandler.Max =                         23;
+  SetHoursHandler.Increment =                   1;
+  SetHoursHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetHoursHandler.DisplayFunction =             &DisplayTimeSetting;
+  SetHoursHandler.ButtonClickedFunction =       &SwitchToSetMinutes;
+  SetHoursHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetHoursHandler.ButtonHeldFunction =          &NullFunction;
+  SetHoursHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+
+  SetMinutesHandler.Min =                         0;
+  SetMinutesHandler.Max =                         59;
+  SetMinutesHandler.Increment =                   1;
+  SetMinutesHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetMinutesHandler.DisplayFunction =             &DisplayTimeSetting;
+  SetMinutesHandler.ButtonClickedFunction =       &SwitchToSetSeconds;
+  SetMinutesHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetMinutesHandler.ButtonHeldFunction =          &NullFunction;
+  SetMinutesHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+
+  SetSecondsHandler.Min =                         0;
+  SetSecondsHandler.Max =                         59;
+  SetSecondsHandler.Increment =                   1;
+  SetSecondsHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  SetSecondsHandler.DisplayFunction =             &DisplayTimeSetting;
+  SetSecondsHandler.ButtonClickedFunction =       &SetTime;
+  SetSecondsHandler.ButtonDoubleClickedFunction = &NullFunction;
+  SetSecondsHandler.ButtonHeldFunction =          &NullFunction;
+  SetSecondsHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   // Initialize global variables
   TemperatureHandler.value = TemperatureHandler.Min;
@@ -458,5 +567,35 @@ void DisplayOverrideTime ()
   uint16_t ovm = (OverrideTimeHandler.value - ovh * 3600L) / 60;
   sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
   sprintf(lcd_line2, "");
+  refresh_lcd();
+}
+
+
+void DisplayDateSetting()
+{
+  strcpy(lcd_line1, "Set the date:");
+  temp_tm.tm_year = SetYearHandler.value;
+  temp_tm.tm_mon = SetMonthHandler.value;
+  temp_tm.tm_mday = SetDayHandler.value;
+  temp_tm.tm_hour = SetHoursHandler.value;
+  temp_tm.tm_min = SetMinutesHandler.value;
+  temp_tm.tm_sec = SetSecondsHandler.value;
+  isotime_r(&temp_tm, lcd_line2);
+  lcd_line2[10] = '\0';
+  refresh_lcd();
+}
+
+void DisplayTimeSetting()
+{
+  char str_temp[16];
+  strcpy(lcd_line1, "Set the time:");
+  temp_tm.tm_year = SetYearHandler.value;
+  temp_tm.tm_mon = SetMonthHandler.value;
+  temp_tm.tm_mday = SetDayHandler.value;
+  temp_tm.tm_hour = SetHoursHandler.value;
+  temp_tm.tm_min = SetMinutesHandler.value;
+  temp_tm.tm_sec = SetSecondsHandler.value;
+  isotime_r(&temp_tm, str_temp);
+  strcpy(lcd_line2, &str_temp[11]);
   refresh_lcd();
 }
