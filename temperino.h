@@ -20,10 +20,11 @@
 // Connections
 #define LCD_PINS  7,  8,  9, 10, 11, 12
 //      LCD_PINS RS, EN, D4, D5, D6, D7
+#define ENCODER_PINS   2,  3,  4
+//      ENCODER_PINS CLK, DT, SW
 #define RTC_SOFTWARE_WIRE_SDA PIN_A0
 #define RTC_SOFTWARE_WIRE_SCL PIN_A1
 #define VALVE_PIN 13
-#define ENCODER_PINS 2, 3, 4
 
 
 // Operative parameters
@@ -32,12 +33,12 @@
 #define TEMP_HYSTERESIS 0.5
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
-#define STEPS_PER_DEGREE 2
-#define SECONDS_PER_STEP 600  // 10 minutes
-#define MAX_OVERRIDE 86400    // 24 hours
+#define TEMP_INCREMENT 0.5
+#define OVERRIDE_TIME_MAX 86400
+#define OVERRIDE_TIME_INCREMENT 300
 #define VALVE_ACTIVATION_TIME 15
-#define MIN_TEMP 5
-#define MAX_TEMP 25
+#define TEMP_MIN 5.0
+#define TEMP_MAX 25.0
 #define MAX_WEEKLY_STEPS 70
 
 
@@ -51,7 +52,6 @@
       loops = 0;                   \
       }
 #endif
-float setpoint;
 float temperature;
 bool valve_target;
 bool valve_status;
@@ -61,7 +61,6 @@ unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
 uint16_t now_tow;
-time_t override_t = 0;
  
 // Schedule table
 struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
@@ -124,9 +123,12 @@ typedef (EncoderRotatedFunction_t)(int16_t value);
 typedef (DisplayFunction_t)();
 typedef (ButtonFunction_t)();
 
-struct encoder_handler
+struct EncoderHandler_t
 {
-  long int encoder_value;
+  float value;
+  float Min;
+  float Max;
+  float Increment;
   EncoderRotatedFunction_t *EncoderRotatedFunction;
   DisplayFunction_t *DisplayFunction;
   ButtonFunction_t *ButtonClickedFunction;
@@ -135,6 +137,6 @@ struct encoder_handler
   ButtonFunction_t *ButtonReleasedFunction;
 };
 
-struct encoder_handler temperature_handler;
-struct encoder_handler configuration_handler;
-struct encoder_handler *current_handler = &temperature_handler;
+struct EncoderHandler_t TemperatureHandler;
+struct EncoderHandler_t OverrideTimeHandler;
+struct EncoderHandler_t *ActiveHandler = &TemperatureHandler;

@@ -6,15 +6,28 @@ void NullFunction()
 }
 
 
-void SwitchToOverride()
+void SwitchToOverrideTime()
 {
-  current_handler = &configuration_handler;
+  // Adjust the actual value (which is decremented by the time running in steps of 1 seconds)
+  // to the nearest "Increment" value (5 minutes by default)
+  long int temp = (OverrideTimeHandler.value + OverrideTimeHandler.Increment / 2) / OverrideTimeHandler.Increment;
+  OverrideTimeHandler.value = (float) temp * OverrideTimeHandler.Increment;
+
+  ActiveHandler = &OverrideTimeHandler;
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.println(F(" Switching to Override setting mode."));
+  #endif
 }
 
 
 void SwitchToTemperature()
 {
-  current_handler = &temperature_handler;
+  ActiveHandler = &TemperatureHandler;
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.println(F(" Switching to Temperature setting mode."));
+  #endif
 }
 
 
@@ -28,30 +41,15 @@ void ToggleButtonAcceleration()
 }
 
 
-void set_temperature (int16_t value)
+void UpdateActiveHandlerValue (int16_t value)
 {
-  temperature_handler.encoder_value += value;
-  temperature_handler.encoder_value = max(MIN_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
-  temperature_handler.encoder_value = min(MAX_TEMP * STEPS_PER_DEGREE, temperature_handler.encoder_value);
-  setpoint = (float) temperature_handler.encoder_value / STEPS_PER_DEGREE;
+  ActiveHandler->value += value * ActiveHandler->Increment;
+  ActiveHandler->value = max(ActiveHandler->Min, ActiveHandler->value);
+  ActiveHandler->value = min(ActiveHandler->Max, ActiveHandler->value);
   #if DEBUG > 1
     Serial.print(timestamp);
-    Serial.print(F(" Setpoint: "));
-    Serial.println(setpoint);
-  #endif
-}
-
-
-void set_override (int16_t value)
-{
-  configuration_handler.encoder_value += value;
-  configuration_handler.encoder_value = max(0, configuration_handler.encoder_value);
-  configuration_handler.encoder_value = min(MAX_OVERRIDE / SECONDS_PER_STEP, configuration_handler.encoder_value);
-  override_t = configuration_handler.encoder_value * SECONDS_PER_STEP;
-  #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.print(F(" Override: "));
-    Serial.println(override_t);
+    Serial.print(F(" Value: "));
+    Serial.println(ActiveHandler->value);
   #endif
 }
 
@@ -65,7 +63,7 @@ void EncoderDispatcher()
   {
     if (value != 0)
     {
-      current_handler->EncoderRotatedFunction(value);
+      ActiveHandler->EncoderRotatedFunction(value);
     }
   }
   else
@@ -80,25 +78,25 @@ void EncoderDispatcher()
         #if DEBUG > 1
           Serial.println(F("Clicked"));
         #endif
-        current_handler->ButtonClickedFunction();
+        ActiveHandler->ButtonClickedFunction();
         break;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
           Serial.println(F("DoubleClicked"));
         #endif
-        current_handler->ButtonDoubleClickedFunction();
+        ActiveHandler->ButtonDoubleClickedFunction();
         break;
       case ClickEncoder::Held:
         #if DEBUG > 1
           Serial.println(F("Held"));
         #endif
-        current_handler->ButtonHeldFunction();
+        ActiveHandler->ButtonHeldFunction();
         break;
       case ClickEncoder::Released:
         #if DEBUG > 1
           Serial.println(F("Released"));
         #endif
-        current_handler->ButtonReleasedFunction();
+        ActiveHandler->ButtonReleasedFunction();
         break;
     }
   }
@@ -193,25 +191,31 @@ void setup()
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
 
-  // Configure encoder handlers
-  temperature_handler.EncoderRotatedFunction = &set_temperature;
-  temperature_handler.DisplayFunction = &display_temperature;
-  temperature_handler.ButtonClickedFunction = &SwitchToOverride;  
-  temperature_handler.ButtonDoubleClickedFunction = &ToggleButtonAcceleration;
-  temperature_handler.ButtonHeldFunction = &NullFunction;  
-  temperature_handler.ButtonReleasedFunction = &NullFunction;  
+  // Configure handlers
+  TemperatureHandler.Min =                          TEMP_MIN;
+  TemperatureHandler.Max =                          TEMP_MAX;
+  TemperatureHandler.Increment =                    TEMP_INCREMENT;
+  TemperatureHandler.EncoderRotatedFunction =       &UpdateActiveHandlerValue;
+  TemperatureHandler.DisplayFunction =              &DisplayTemperature;
+  TemperatureHandler.ButtonClickedFunction =        &SwitchToOverrideTime;  
+  TemperatureHandler.ButtonDoubleClickedFunction =  &NullFunction;
+  TemperatureHandler.ButtonHeldFunction =           &NullFunction;  
+  TemperatureHandler.ButtonReleasedFunction =       &ToggleButtonAcceleration;  
   
-  configuration_handler.EncoderRotatedFunction = &set_override;
-  configuration_handler.DisplayFunction = &display_override;
-  configuration_handler.ButtonClickedFunction = &SwitchToTemperature;  
-  configuration_handler.ButtonDoubleClickedFunction = &ToggleButtonAcceleration;
-  configuration_handler.ButtonHeldFunction = &NullFunction;  
-  configuration_handler.ButtonReleasedFunction = &NullFunction;  
+  OverrideTimeHandler.Min =                         0;
+  OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
+  OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
+  OverrideTimeHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
+  OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;  
+  OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
+  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;  
+  OverrideTimeHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;  
 
 
   // Initialize global variables
-  setpoint = MIN_TEMP;
-  temperature = MIN_TEMP;
+  TemperatureHandler.value = TemperatureHandler.Min;
+  temperature = TemperatureHandler.Min;
   valve_target = false;
   valve_status = false;
   pinMode(VALVE_PIN, OUTPUT);
@@ -225,8 +229,7 @@ void setup()
   init_schedule();
 
   #if DEBUG > 0
-    Serial.println(F("Setup done."));
-    Serial.println("");
+    Serial.print(F("Setup done.\n\n"));
   #endif
 
   // End of Setup
@@ -267,14 +270,13 @@ void loop()
     }
     else
     {
-      setpoint = MIN_TEMP;
+      TemperatureHandler.value = TemperatureHandler.Min;
       Serial.println(F("RTC clock failed!"));
     }
 
-    if (override_t > 0 && current_handler != &configuration_handler)
+    if (OverrideTimeHandler.value > 0 && ActiveHandler != &OverrideTimeHandler)
     {
-      override_t -= POLLING_TIME / 1000;
-      DUMP(override_t);
+      OverrideTimeHandler.value -= POLLING_TIME / 1000;
     }
     else
     {
@@ -285,7 +287,7 @@ void loop()
   }
 
   // Display status on LCD
-  current_handler->DisplayFunction();
+  ActiveHandler->DisplayFunction();
 
   // End of Loop
 }
@@ -309,7 +311,7 @@ void GetTemperature()
   {
     Serial.print(timestamp);
     Serial.println(F(" MCP9808 failed!"));
-    temperature = MAX_TEMP;
+    temperature = TemperatureHandler.Max;
   }
 #endif
 
@@ -324,9 +326,9 @@ void GetTemperature()
 // See if valve status should be modified
 void select_valve_status()
 {
-  if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
+  if ((abs(TemperatureHandler.value - temperature) > TEMP_HYSTERESIS))
   {
-    if (setpoint > temperature)
+    if (TemperatureHandler.value > temperature)
     {
       valve_target = true;
     }
@@ -352,7 +354,7 @@ void select_valve_status()
       {
         Serial.print(timestamp);
         Serial.print(F(" Setpoint: "));
-        Serial.print(setpoint);
+        Serial.print(TemperatureHandler.value);
         Serial.print(F(" Temp: "));
         Serial.print(temperature);
         Serial.println(valve_target ? F(" Turn on!") : F(" Turn off!"));
@@ -367,7 +369,7 @@ void select_valve_status()
 void check_schedule()
 {
   int step = 0;
-  float newtemp = MIN_TEMP - 1;
+  float newtemp = TemperatureHandler.Min - 1;
 
   while (step < MAX_WEEKLY_STEPS)
   {
@@ -376,7 +378,7 @@ void check_schedule()
     step++;
   }
 
-  if (newtemp < MIN_TEMP) return;
+  if (newtemp < TemperatureHandler.Min) return;
 
   if (step == current_step) return;
 
@@ -385,8 +387,8 @@ void check_schedule()
     DUMP(step);
   #endif
 
-  setpoint = newtemp;
-  temperature_handler.encoder_value = setpoint * STEPS_PER_DEGREE;
+  TemperatureHandler.value = newtemp;
+
   current_step = step;
 
 }
@@ -423,6 +425,7 @@ void init_schedule()
 
 
 
+// Actually print the content of the two line buffers on the LCD
 void refresh_lcd()
 {
   lcd.setCursor(0, 0);
@@ -435,24 +438,24 @@ void refresh_lcd()
 
 
 // Display temperature on LCD
-void display_temperature ()
+void DisplayTemperature ()
 {
   char str_temp[16];
-  dtostrf(temperature, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line1, "Amb:%6s %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
-  dtostrf(setpoint, 6, 2, str_temp);
-  if (strlen(str_temp) > 6) str_temp[6] = '\0';
-  sprintf(lcd_line2, "Set:%6s   %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
+  dtostrf(temperature, 5, 1, str_temp);
+  if (strlen(str_temp) > 5) str_temp[5] = '\0';
+  sprintf(lcd_line1, "Amb:%5s  %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
+  dtostrf(TemperatureHandler.value, 5, 1, str_temp);
+  if (strlen(str_temp) > 5) str_temp[5] = '\0';
+  sprintf(lcd_line2, "Set:%5s    %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
   refresh_lcd();
 }
 
 
-// Display override on LCD
-void display_override ()
+// Display override time on LCD
+void DisplayOverrideTime ()
 {
-  uint16_t ovh = override_t / 3600;
-  uint16_t ovm = (override_t - ovh * 3600L) / 60;
+  uint16_t ovh = OverrideTimeHandler.value / 3600;
+  uint16_t ovm = (OverrideTimeHandler.value - ovh * 3600L) / 60;
   sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
   sprintf(lcd_line2, "");
   refresh_lcd();
