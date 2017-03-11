@@ -97,6 +97,10 @@ LiquidCrystal lcd(LCD_PINS);
 #endif
 
 
+// This is for the str20ToTime() function used to bootstrap the RTC in case it has an invalid time
+#include "RtcUtility.h"
+
+
 #ifdef MCP9808_TEMP
   // Adafruit MCP9808 i2c temperature sensor
   // See: http://www.adafruit.com/products/1782
