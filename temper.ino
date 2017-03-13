@@ -226,13 +226,17 @@ void setup()
 
 #ifdef MCP9808_TEMP
   // Setup MCP9808
-  //
-  // Make sure the sensor is found, you can also pass in a different i2c
-  // address with tempsensor.begin(0x19) for example
-  if (!tempsensor.begin())
+  if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
   {
     Serial.println(F("Couldn't find MCP9808!"));
+    while (true);
   }
+  tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
+  #if DEBUG > 0
+    uint8_t temperatureResolution = tempsensor.getResolution();
+    Serial.print(F("MCP9808"));
+    DUMP(temperatureResolution);
+  #endif
 #endif
 
 
@@ -408,13 +412,12 @@ void GetTemperature()
 {
 #ifdef MCP9808_TEMP
   // MCP9808 Temperature
-  #define MCP9808_DELAY 250
-  if (tempsensor.begin(MCP9808_ADDRESS))
+  if (tempsensor.begin(MCP9808_I2C_ADDRESS))
   {
-    tempsensor.shutdown_wake(0);
+    tempsensor.wakeup();
     temperature = tempsensor.readTempC();
-    delay(MCP9808_DELAY);
-    tempsensor.shutdown_wake(1);
+    tempsensor.shutdown();
+    delay(tempsensor.getSamplingTime());
   }
   else
   {

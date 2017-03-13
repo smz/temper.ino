@@ -40,6 +40,8 @@
 #define TEMP_MIN 5.0
 #define TEMP_MAX 25.0
 #define MAX_WEEKLY_STEPS 70
+#define MCP9808_TEMP_RESOLUTION 0x03
+#define MCP9808_I2C_ADDRESS 0x18
 
 
 // Global variables
@@ -98,15 +100,12 @@ LiquidCrystal lcd(LCD_PINS);
 
 
 // This is for the str20ToTime() function used to bootstrap the RTC in case it has an invalid time
-#include "RtcUtility.h"
+#include "RTCtimeUtils.h"
 
 
 #ifdef MCP9808_TEMP
-  // Adafruit MCP9808 i2c temperature sensor
-  // See: http://www.adafruit.com/products/1782
-  #define MCP9808_ADDRESS 0x18
-  #include "Adafruit_MCP9808.h"
-  Adafruit_MCP9808 tempsensor = Adafruit_MCP9808();
+  #include "MCP9808sensor.h"
+  MCP9808sensor<TwoWire> tempsensor(Wire);
 #endif
 
 
