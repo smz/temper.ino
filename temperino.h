@@ -105,7 +105,11 @@ LiquidCrystal lcd(LCD_PINS);
 
 #ifdef MCP9808_TEMP
   #include "MCP9808sensor.h"
-  MCP9808sensor<TwoWire> tempsensor(Wire);
+  #ifndef RTC_SOFTWARE_WIRE
+    MCP9808sensor<TwoWire> tempsensor(Wire);
+  #else
+    MCP9808sensor<SoftwareWire> tempsensor(myWire);
+  #endif
 #endif
 
 

@@ -416,9 +416,9 @@ void GetTemperature()
   {
     tempsensor.wakeup();
     temperature = tempsensor.readTempC();
-    tempsensor.shutdown();
     delay(tempsensor.getSamplingTime());
-  }
+    tempsensor.shutdown();
+ }
   else
   {
     Serial.print(timestamp);
