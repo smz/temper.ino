@@ -22,8 +22,8 @@
 //      LCD_PINS RS, EN, D4, D5, D6, D7
 #define ENCODER_PINS   2,  3,  4
 //      ENCODER_PINS CLK, DT, SW
-#define RTC_SOFTWARE_WIRE_SDA PIN_A0
-#define RTC_SOFTWARE_WIRE_SCL PIN_A1
+#define RTC_SOFTWARE_WIRE_SDA SDA
+#define RTC_SOFTWARE_WIRE_SCL SCL
 #define VALVE_PIN 13
 
 
@@ -64,10 +64,11 @@ time_t now;
 struct tm now_tm;
 struct tm temp_tm;
 uint16_t now_tow;
- 
+
 // Schedule table
 struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
 uint8_t current_step = MAX_WEEKLY_STEPS + 1;
+
 
 // LCD
 #include <LiquidCrystal.h>
@@ -76,40 +77,35 @@ char lcd_line2[17];
 LiquidCrystal lcd(LCD_PINS);
 
 
-#ifndef RTC_SOFTWARE_WIRE
-  #include <Wire.h>
-  #ifdef DS3231
-    #include <RtcDS3231.h>
-    RtcDS3231<TwoWire> Rtc(Wire);
-  #else
-    #include <RtcDS1307.h>
-    RtcDS1307<TwoWire> Rtc(Wire);
-  #endif
-#else
+// TWI/I2C interface
+#ifdef RTC_SOFTWARE_WIRE
   #include <SoftwareWire.h>
-  #ifdef DS3231
-    #include <RtcDS3231.h>
-    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
-    RtcDS3231<SoftwareWire> Rtc(myWire);
-  #else
-    #include <RtcDS1307.h>
-    SoftwareWire myWire(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
-    RtcDS1307<SoftwareWire> Rtc(myWire);
-  #endif
+  #define myWire SoftwareWire
+  myWire I2C(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
+#else
+  #include <Wire.h>
+  #define myWire TwoWire
+  #define I2C Wire
 #endif
 
+
+// RTC
+#ifdef DS3231
+  #include <RtcDS3231.h>
+  RtcDS3231<myWire> Rtc(I2C);
+#else
+  #include <RtcDS1307.h>
+  RtcDS1307<myWire> Rtc(I2C);
+#endif
 
 // This is for the str20ToTime() function used to bootstrap the RTC in case it has an invalid time
 #include "RTCtimeUtils.h"
 
 
+// Temperature sensor
 #ifdef MCP9808_TEMP
   #include "MCP9808sensor.h"
-  #ifndef RTC_SOFTWARE_WIRE
-    MCP9808sensor<TwoWire> tempsensor(Wire);
-  #else
-    MCP9808sensor<SoftwareWire> tempsensor(myWire);
-  #endif
+  MCP9808sensor<myWire> tempsensor(I2C);
 #endif
 
 
