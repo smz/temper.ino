@@ -22,8 +22,8 @@
 //      LCD_PINS RS, EN, D4, D5, D6, D7
 #define ENCODER_PINS   2,  3,  4
 //      ENCODER_PINS CLK, DT, SW
-#define RTC_SOFTWARE_WIRE_SDA SDA
-#define RTC_SOFTWARE_WIRE_SCL SCL
+#define SOFTWARE_WIRE_SDA SDA
+#define SOFTWARE_WIRE_SCL SCL
 #define VALVE_PIN 13
 
 
@@ -81,7 +81,7 @@ LiquidCrystal lcd(LCD_PINS);
 #ifdef RTC_SOFTWARE_WIRE
   #include <SoftwareWire.h>
   #define myWire SoftwareWire
-  myWire I2C(RTC_SOFTWARE_WIRE_SDA, RTC_SOFTWARE_WIRE_SCL);
+  myWire I2C(SOFTWARE_WIRE_SDA, SOFTWARE_WIRE_SCL);
 #else
   #include <Wire.h>
   #define myWire TwoWire
