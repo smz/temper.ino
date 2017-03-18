@@ -10,10 +10,10 @@
 #include "debug.h"
 
 // Project configuration parameters
-#define DS3231
+#undef  DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
-#define RESET_RTC_TIME
+#undef RESET_RTC_TIME
 #undef  RTC_SOFTWARE_WIRE
 
 
@@ -110,9 +110,10 @@ LiquidCrystal lcd(LCD_PINS);
 
 
 // Rotary Encoder
-// Uses the ClickEncoder library by 0xPIT
-// See: https://github.com/0xPIT/encoder
-// ClickEncoder needs the Timer1 library (see: http://playground.arduino.cc/Code/Timer1)
+// Uses the ClickEncoder library by 0xPIT (https://github.com/0xPIT/encoder)
+// as implemented by soligen2010 (https://github.com/soligen2010/encoder)
+// See: 
+// ClickEncoder needs the Timer1 library (http://playground.arduino.cc/Code/Timer1)
 // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
 #include <TimerOne.h>
 #include <ClickEncoder.h>
