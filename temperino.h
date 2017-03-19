@@ -2,9 +2,10 @@
 
 // DEBUG
 //  0 No debug
-//  1 Debug actions
-//  2 Debug actions and Rotary Encoder
-//  3 Debug actions, Rotary Encoder and scheduler
+//  1 actions
+//  2 + rotary encoder
+//  3 + scheduler
+//  4 + more stuff
 // 99 Debug all
 #define DEBUG 3
 #include "debug.h"
@@ -13,8 +14,9 @@
 #undef  DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
-#undef RESET_RTC_TIME
-#undef  RTC_SOFTWARE_WIRE
+#undef  RESET_RTC_TIME
+#undef  RESET_RTC_OLDER
+#undef  SOFTWARE_WIRE
 
 
 // Connections
@@ -78,7 +80,7 @@ LiquidCrystal lcd(LCD_PINS);
 
 
 // TWI/I2C interface
-#ifdef RTC_SOFTWARE_WIRE
+#ifdef SOFTWARE_WIRE
   #include <SoftwareWire.h>
   #define myWire SoftwareWire
   myWire I2C(SOFTWARE_WIRE_SDA, SOFTWARE_WIRE_SCL);
