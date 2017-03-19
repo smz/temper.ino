@@ -37,12 +37,21 @@ void SwitchToSetSeconds()
 {
   ActiveHandler = &SetSecondsHandler;
 }
-
-
 void SetTime()
 {
+  #if DEBUG > 0
+    Serial.print(timestamp);
+  #endif
   time_t temp = mktime(&temp_tm);
   Rtc.SetTime(&temp);
+  now = Rtc.GetTime();
+  localtime_r(&now, &now_tm);
+  strcpy(timestamp, isotime(&now_tm));
+  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
+  #if DEBUG > 0
+    Serial.print(F(" New time is: "));
+    Serial.println(timestamp);
+  #endif
   SwitchToTemperature();
 }
 
@@ -157,16 +166,7 @@ void setup()
   // Setup LCD
   lcd.begin(16, 2);
 
-#if DEBUG > 0
-    Serial.print(F("Using "));
-  #ifdef DS3231
-    Serial.print (F("DS3231"));
-  #else
-    Serial.print (F("DS1307"));
-  #endif
-    Serial.println(F(" RTC"));
-#endif
-
+#ifdef DS3231
   // Setup RTC
   Rtc.Begin();
   set_zone(TIMEZONE);
@@ -198,7 +198,7 @@ void setup()
     #else
     Serial.println(F("Forcing setting RTC with compile time."));
     #endif
-//    Rtc.SetTime(&compiled_time_t);
+    Rtc.SetTime(&compiled_time_t);
   }
 
   // Check if the RTC clock is running (Yes, it can be stopped, if you wish!)
@@ -211,20 +211,16 @@ void setup()
   // Get the time from the RTC
   now = Rtc.GetTime();
 
-#ifdef RESET_RTC_OLDER
   // Reset the RTC if "now" is older than "Compile time"
   if (now < compiled_time_t)
   {
     Serial.println(F("WARNING: RTC is older than compile time, setting RTC with compile time!"));
     Rtc.SetTime(&compiled_time_t);
   }
-#endif
 
-#ifdef DS3231
   // Reset the DS3231 RTC status in case it was wrongly configured
-//Rtc.Enable32kHzPin(false); // <--- troubles, bug, fubar, check!
-//Rtc.Enable32kHzPin(true);  // <--- troubles, bug, fubar, check!
-//  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
+  Rtc.Enable32kHzPin(false);
+  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
 #endif
 
 
@@ -258,17 +254,17 @@ void setup()
   TemperatureHandler.ButtonClickedFunction =       &SwitchToOverrideTime;  
   TemperatureHandler.ButtonDoubleClickedFunction = &NullFunction;
   TemperatureHandler.ButtonHeldFunction =          &NullFunction;  
-  TemperatureHandler.ButtonReleasedFunction =      &SwitchToSetTime;  
+  TemperatureHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;  
   
   OverrideTimeHandler.Min =                         0;
   OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
   OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
   OverrideTimeHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
   OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
-  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;  
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToSetTime;  
   OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
   OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;  
-  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;  
+  OverrideTimeHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;  
 
   SetYearHandler.Min =                         117;
   SetYearHandler.Max =                         199;
@@ -278,7 +274,7 @@ void setup()
   SetYearHandler.ButtonClickedFunction =       &SwitchToSetMonth;
   SetYearHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetYearHandler.ButtonHeldFunction =          &NullFunction;
-  SetYearHandler.ButtonReleasedFunction =      &NullFunction;
+  SetYearHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   SetMonthHandler.Min =                         0;
   SetMonthHandler.Max =                         11;
@@ -288,7 +284,7 @@ void setup()
   SetMonthHandler.ButtonClickedFunction =       &SwitchToSetDay;
   SetMonthHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetMonthHandler.ButtonHeldFunction =          &NullFunction;
-  SetMonthHandler.ButtonReleasedFunction =      &NullFunction;
+  SetMonthHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   SetDayHandler.Min =                         1;
   SetDayHandler.Max =                         31;
@@ -298,7 +294,7 @@ void setup()
   SetDayHandler.ButtonClickedFunction =       &SwitchToSetHours;
   SetDayHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetDayHandler.ButtonHeldFunction =          &NullFunction;
-  SetDayHandler.ButtonReleasedFunction =      &NullFunction;
+  SetDayHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   SetHoursHandler.Min =                         0;
   SetHoursHandler.Max =                         23;
@@ -318,7 +314,7 @@ void setup()
   SetMinutesHandler.ButtonClickedFunction =       &SwitchToSetSeconds;
   SetMinutesHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetMinutesHandler.ButtonHeldFunction =          &NullFunction;
-  SetMinutesHandler.ButtonReleasedFunction =      &NullFunction;
+  SetMinutesHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   SetSecondsHandler.Min =                         0;
   SetSecondsHandler.Max =                         59;
@@ -328,7 +324,7 @@ void setup()
   SetSecondsHandler.ButtonClickedFunction =       &SetTime;
   SetSecondsHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetSecondsHandler.ButtonHeldFunction =          &NullFunction;
-  SetSecondsHandler.ButtonReleasedFunction =      &NullFunction;
+  SetSecondsHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
 
   // Initialize global variables
   TemperatureHandler.value = TemperatureHandler.Min;
@@ -340,10 +336,7 @@ void setup()
   prev_valve_time = now;
   localtime_r(&now, &now_tm);
   strcpy(timestamp, isotime(&now_tm));
-
-  now = Rtc.GetTime();
-  localtime_r(&now, &now_tm);
-  strcpy(timestamp, isotime(&now_tm));
+  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
 
   // Initialize the weekly schedule
   init_schedule();
@@ -386,27 +379,7 @@ void loop()
       now = Rtc.GetTime();
       localtime_r(&now, &now_tm);
       strcpy(timestamp, isotime(&now_tm));
-//      now_tow = now_tm.tm_wday * 10000UL + now_tm.tm_hour * 100UL + now_tm.tm_min;
       now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
-      #if DEBUG > 3
-        Serial.print(timestamp);
-        Serial.print(" year=");
-        Serial.print(now_tm.tm_year);
-        Serial.print(" month=");
-        Serial.print(now_tm.tm_mon);
-        Serial.print(" mday=");
-        Serial.print(now_tm.tm_mday);
-        Serial.print(" hour=");
-        Serial.print(now_tm.tm_hour);
-        Serial.print(" min=");
-        Serial.print(now_tm.tm_min);
-        Serial.print(" sec=");
-        Serial.print(now_tm.tm_sec);
-        Serial.print(" wday=");
-        Serial.print(now_tm.tm_wday);
-        Serial.print(" tow=");
-        Serial.println(now_tow);
-      #endif
     }
     else
     {
@@ -580,33 +553,22 @@ void refresh_lcd()
 void DisplayTemperature ()
 {
   char str_temp[16];
-  char str_ovt[6];
   dtostrf(temperature, 5, 1, str_temp);
   if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line1, "A%5s  %2i:%2.2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
+  sprintf(lcd_line1, "Amb:%5s  %2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min);
   dtostrf(TemperatureHandler.value, 5, 1, str_temp);
   if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (valve_status == valve_target ? (valve_target ? "ON" : "OF") : (valve_target ? "on" : "of")));
+  sprintf(lcd_line2, "Set:%5s    %3s", str_temp, (valve_status == valve_target ? (valve_target ? " ON" : "OFF") : (valve_target ? " on" : "off")));
   refresh_lcd();
-}
-
-
-// GetFormattedOverrideTime
-char* GetFormattedOverrideTime (void)
-{
-  #define OVT_ROUNDING 59UL
-  static char str[6];
-  uint16_t ovh = (OverrideTimeHandler.value + OVT_ROUNDING) / 3600;
-  uint16_t ovm = ((OverrideTimeHandler.value + OVT_ROUNDING) - ovh * 3600L) / 60;
-  sprintf(str, "%2.2i:%2.2i", ovh, ovm);
-  return str;
 }
 
 
 // Display override time on LCD
 void DisplayOverrideTime ()
 {
-  sprintf(lcd_line1, "OVR time: %5.5s", GetFormattedOverrideTime());
+  uint16_t ovh = OverrideTimeHandler.value / 3600;
+  uint16_t ovm = (OverrideTimeHandler.value - ovh * 3600L) / 60;
+  sprintf(lcd_line1, "OVR time: %2.2i:%2.2i", ovh, ovm);
   sprintf(lcd_line2, "");
   refresh_lcd();
 }
