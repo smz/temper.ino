@@ -149,23 +149,31 @@ void setup()
 {
 
   // Setup Serial
-  Serial.begin(SERIAL_SPEED);
   #if DEBUG > 0
+    Serial.begin(SERIAL_SPEED);
     Serial.println(F("Setup started."));
   #endif
 
   // Setup LCD
-  lcd.begin(16, 2);
-
-#if DEBUG > 0
-    Serial.print(F("Using "));
-  #ifdef DS3231
-    Serial.print (F("DS3231"));
-  #else
-    Serial.print (F("DS1307"));
+  #ifdef LCD
+    lcd.begin(16, 2);
   #endif
+
+  // Setup SH1106 OLED
+  #ifdef SH1106
+    u8g2.begin();
+  #endif
+
+  // Print debug info
+  #if DEBUG > 0
+    Serial.print(F("Using "));
+    #ifdef DS3231
+      Serial.print (F("DS3231"));
+    #else
+      Serial.print (F("DS1307"));
+    #endif
     Serial.println(F(" RTC"));
-#endif
+  #endif
 
   // Setup RTC
   Rtc.Begin();
@@ -247,6 +255,7 @@ void setup()
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
+
 
   // Configure handlers
   TemperatureHandler.Min =                         TEMP_MIN;
@@ -338,13 +347,14 @@ void setup()
   digitalWrite(VALVE_PIN, LOW);
   prev_valve_time = now;
   localtime_r(&now, &now_tm);
-  strcpy(timestamp, isotime(&now_tm));
 
   // Initialize the weekly schedule
   init_schedule();
 
   #if DEBUG > 0
-    Serial.print(F("Setup done.\n\n"));
+    strcpy(timestamp, isotime(&now_tm));
+    Serial.print(timestamp);
+    Serial.println(F(" Starting"));
   #endif
 
   // End of Setup
@@ -380,25 +390,27 @@ void loop()
     {
       now = Rtc.GetTime();
       localtime_r(&now, &now_tm);
-      strcpy(timestamp, isotime(&now_tm));
       now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
+      #if DEBUG > 0
+        strcpy(timestamp, isotime(&now_tm));
+      #endif
       #if DEBUG > 3
         Serial.print(timestamp);
-        Serial.print(" year=");
+        Serial.print(F(" year="));
         Serial.print(now_tm.tm_year);
-        Serial.print(" month=");
+        Serial.print(F(" month="));
         Serial.print(now_tm.tm_mon);
-        Serial.print(" mday=");
+        Serial.print(F(" mday="));
         Serial.print(now_tm.tm_mday);
-        Serial.print(" hour=");
+        Serial.print(F(" hour="));
         Serial.print(now_tm.tm_hour);
-        Serial.print(" min=");
+        Serial.print(F(" min="));
         Serial.print(now_tm.tm_min);
-        Serial.print(" sec=");
+        Serial.print(F(" sec="));
         Serial.print(now_tm.tm_sec);
-        Serial.print(" wday=");
+        Serial.print(F(" wday="));
         Serial.print(now_tm.tm_wday);
-        Serial.print(" tow=");
+        Serial.print(F(" tow="));
         Serial.println(now_tow);
       #endif
     }
@@ -442,8 +454,10 @@ void GetTemperature()
  }
   else
   {
-    Serial.print(timestamp);
-    Serial.println(F(" MCP9808 failed!"));
+    #if DEBUG > 0
+      Serial.print(timestamp);
+      Serial.println(F(" MCP9808 failed!"));
+    #endif
     temperature = TemperatureHandler.Max;
   }
 #endif
@@ -557,7 +571,7 @@ void init_schedule()
 }
 
 
-
+#ifdef LCD
 // Actually print the content of the two line buffers on the LCD
 void refresh_lcd()
 {
@@ -634,3 +648,89 @@ void DisplayTimeSetting()
   strcpy(lcd_line2, &str_temp[11]);
   refresh_lcd();
 }
+#endif
+
+
+
+#ifdef SH1106
+// Actually print the content of the two line buffers on the LCD
+void refresh_lcd()
+{
+  u8g2.firstPage();
+  for (int k = strlen(lcd_line1); k < 16; k++) lcd_line1[k] = " ";
+  lcd_line1[16] = '\0';
+  for (int k = strlen(lcd_line2); k < 16; k++) lcd_line2[k] = " ";
+  lcd_line2[16] = '\0';
+  do {
+    u8g2.setFont(u8g2_font_8x13B_tf);
+    u8g2.drawStr(0, 13, lcd_line1);
+    u8g2.drawStr(0, 30, lcd_line2);
+  } while (u8g2.nextPage());
+}
+
+
+// Display temperature on LCD
+void DisplayTemperature ()
+{
+  char str_temp[16];
+  char str_ovt[6];
+  dtostrf(temperature, 5, 1, str_temp);
+  if (strlen(str_temp) > 5) str_temp[5] = '\0';
+  sprintf(lcd_line1, "A%5s  %2i:%2.2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
+  dtostrf(TemperatureHandler.value, 5, 1, str_temp);
+  if (strlen(str_temp) > 5) str_temp[5] = '\0';
+  sprintf(lcd_line2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (valve_status == valve_target ? (valve_target ? "ON" : "OF") : (valve_target ? "on" : "of")));
+  refresh_lcd();
+}
+
+
+// GetFormattedOverrideTime
+char* GetFormattedOverrideTime (void)
+{
+  #define OVT_ROUNDING 59UL
+  static char str[6];
+  uint16_t ovh = (OverrideTimeHandler.value + OVT_ROUNDING) / 3600;
+  uint16_t ovm = ((OverrideTimeHandler.value + OVT_ROUNDING) - ovh * 3600L) / 60;
+  sprintf(str, "%2.2i:%2.2i", ovh, ovm);
+  return str;
+}
+
+
+// Display override time on LCD
+void DisplayOverrideTime ()
+{
+  sprintf(lcd_line1, "OVR time: %5.5s", GetFormattedOverrideTime());
+  sprintf(lcd_line2, "");
+  refresh_lcd();
+}
+
+
+void DisplayDateSetting()
+{
+  strcpy(lcd_line1, "Set the date:");
+  temp_tm.tm_year = SetYearHandler.value;
+  temp_tm.tm_mon = SetMonthHandler.value;
+  temp_tm.tm_mday = SetDayHandler.value;
+  temp_tm.tm_hour = SetHoursHandler.value;
+  temp_tm.tm_min = SetMinutesHandler.value;
+  temp_tm.tm_sec = SetSecondsHandler.value;
+  isotime_r(&temp_tm, lcd_line2);
+  lcd_line2[10] = '\0';
+  refresh_lcd();
+}
+
+void DisplayTimeSetting()
+{
+  char str_temp[16];
+  strcpy(lcd_line1, "Set the time:");
+  temp_tm.tm_year = SetYearHandler.value;
+  temp_tm.tm_mon = SetMonthHandler.value;
+  temp_tm.tm_mday = SetDayHandler.value;
+  temp_tm.tm_hour = SetHoursHandler.value;
+  temp_tm.tm_min = SetMinutesHandler.value;
+  temp_tm.tm_sec = SetSecondsHandler.value;
+  isotime_r(&temp_tm, str_temp);
+  strcpy(lcd_line2, &str_temp[11]);
+  refresh_lcd();
+}
+#endif

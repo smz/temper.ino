@@ -17,6 +17,8 @@
 #undef  RESET_RTC_TIME
 #undef  RESET_RTC_OLDER
 #undef  SOFTWARE_WIRE
+#undef  LCD
+#define SH1106
 
 
 // Connections
@@ -40,8 +42,8 @@
 #define OVERRIDE_TIME_INCREMENT 300
 #define VALVE_ACTIVATION_TIME 15
 #define TEMP_MIN 5.0
-#define TEMP_MAX 25.0
-#define MAX_WEEKLY_STEPS 70
+#define TEMP_MAX 35.0
+#define MAX_WEEKLY_STEPS 10
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
 
@@ -56,11 +58,15 @@
       loops = 0;                   \
       }
 #endif
+
+#if DEBUG > 0
+  char timestamp[20];
+#endif
+
 float temperature;
 bool valve_target;
 bool valve_status;
 time_t prev_valve_time;
-char timestamp[20];
 unsigned long prev_millis = 0;
 time_t now;
 struct tm now_tm;
@@ -73,10 +79,21 @@ uint8_t current_step = MAX_WEEKLY_STEPS + 1;
 
 
 // LCD
-#include <LiquidCrystal.h>
-char lcd_line1[17];
-char lcd_line2[17];
-LiquidCrystal lcd(LCD_PINS);
+#ifdef LCD
+  #include <LiquidCrystal.h>
+  char lcd_line1[17];
+  char lcd_line2[17];
+  LiquidCrystal lcd(LCD_PINS);
+#endif
+
+
+// SH1106 OLED
+#ifdef SH1106
+  #include <U8g2lib.h>
+  U8G2_SH1106_128X64_VCOMH0_1_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
+  char lcd_line1[17];
+  char lcd_line2[17];
+#endif
 
 
 // TWI/I2C interface
