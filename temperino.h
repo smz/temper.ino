@@ -77,6 +77,8 @@ uint16_t now_tow;
 // Schedule table
 struct programStep {uint16_t tow; float temperature;};
 typedef struct programStep programStep;
+uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
+#define programStepsBaseAddress 0
 
 
 // LCD

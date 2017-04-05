@@ -516,17 +516,23 @@ void select_valve_status()
 
 void check_schedule()
 {
+  #ifndef programStepsBaseAddress
+    #define programStepsBaseAddress 0
+  #endif
+
   int stepIdx = 0;
   float newtemp = TemperatureHandler.Min;
   programStep step;
 
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
-    EEPROM.get(stepIdx * sizeof(programStep), step);
+    EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
     if (step.tow > now_tow) break;
     newtemp = step.temperature;
     stepIdx++;
   }
+
+  if (stepIdx == currentStep) return;  // Otherwise we reset any temporary manual override!
 
   #if DEBUG > 2
     if (TemperatureHandler.value != newtemp)
@@ -538,13 +544,18 @@ void check_schedule()
   #endif
 
   TemperatureHandler.value = newtemp;
+  currentStep = stepIdx;
 }
 
 
 void putStep(int stepIdx, programStep step)
 {
+  #ifndef programStepsBaseAddress
+    #define programStepsBaseAddress 0
+  #endif
+  
   programStep tempStep;
-  stepIdx = stepIdx * sizeof(programStep);
+  stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
 
   #if DEBUG > 2
     Serial.print(F("Storing "));
