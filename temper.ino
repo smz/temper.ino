@@ -349,6 +349,7 @@ void setup()
   localtime_r(&now, &now_tm);
 
   // Initialize the weekly schedule
+  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
   init_schedule();
 
   #if DEBUG > 0
@@ -516,58 +517,98 @@ void select_valve_status()
 void check_schedule()
 {
   int step = 0;
-  float newtemp = TemperatureHandler.Min - 1;
+  float newtemp = TemperatureHandler.Min;
+  programStep tempStep;
 
   while (step < MAX_WEEKLY_STEPS)
   {
-    if (schedule[step].tow > now_tow) break;
-    newtemp = schedule[step].temperature;
+    EEPROM.get(step * sizeof(programStep), tempStep);
+    if (tempStep.tow > now_tow) break;
+    newtemp = tempStep.temperature;
     step++;
   }
 
-  if (newtemp < TemperatureHandler.Min) return;
-
-  if (step == current_step) return;
-
   #if DEBUG > 2
-    Serial.print(timestamp);
-    DUMP(step);
+    if (TemperatureHandler.value != newtemp)
+    {
+      Serial.print(timestamp);
+      Serial.print(F(" New setpoint: "));
+      Serial.println(newtemp);
+    }
   #endif
 
   TemperatureHandler.value = newtemp;
-
-  current_step = step;
-
 }
 
+
+void putStep(int step, programStep stepValue)
+{
+  programStep tempStep;
+  step = step * sizeof(programStep);
+  #if DEBUG > 2
+    Serial.print(F("Putting "));
+    Serial.print(stepValue.tow);
+    Serial.print(F("/"));
+    Serial.print(stepValue.temperature);
+    Serial.print(F(" @ "));
+    Serial.print(step);
+  #endif
+  EEPROM.get(step, tempStep);
+  
+  if (stepValue.tow != tempStep.tow || stepValue.temperature != tempStep.temperature)
+  {
+    EEPROM.put(step, stepValue);
+    #if DEBUG > 2
+      Serial.println(F(" Done!"));
+    #endif
+  }
+  #if DEBUG > 2
+  else
+  {
+      Serial.println(F(" Same, skipping!"));
+  }
+  #endif
+  
+}
 
 
 void init_schedule()
 {
   // Initialize the weekly schedule
-  for (int step = 0; step < MAX_WEEKLY_STEPS; step++)
-  {
-    schedule[step].tow = 100000; // Set to invalid time.
-  }
+  programStep tempStep;
 
   // This is just for testing. Must be replaced with code to read values from EEPROM)
-  schedule[0].tow = now_tow - 1;
-  schedule[0].temperature = 11.0;
+  tempStep.tow = now_tow - 1;
+  tempStep.temperature = 25.0;
+  putStep(0, tempStep);
 
-  schedule[1].tow = now_tow + 1;
-  schedule[1].temperature = 12.0;
+  tempStep.tow = now_tow + 1;
+  tempStep.temperature = TEMP_MAX;
+  putStep(1, tempStep);
 
-  schedule[2].tow = now_tow + 2;
-  schedule[2].temperature = 13.0;
+  tempStep.tow = now_tow + 2;
+  tempStep.temperature = TEMP_MIN;
+  putStep(2, tempStep);
 
-  schedule[3].tow = ((now_tm.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
-  schedule[3].temperature = 21.0;
+  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
+  tempStep.temperature = 25.0;
+  putStep(3, tempStep);
 
-  schedule[4].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
-  schedule[4].temperature = 22.0;
+  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
+  tempStep.temperature = TEMP_MAX;
+  putStep(4, tempStep);
 
-  schedule[5].tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
-  schedule[5].temperature = 23.0;
+  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
+  tempStep.temperature = TEMP_MIN;
+  putStep(5, tempStep);
+
+  tempStep.tow = 65535;
+  tempStep.temperature = TEMP_MIN;
+  
+  for (int step = 6; step < MAX_WEEKLY_STEPS; step++)
+  {
+    putStep(step, tempStep);
+  }
 }
 
 

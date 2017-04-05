@@ -1,4 +1,5 @@
 #include <time.h>
+#include <EEPROM.h>
 
 // DEBUG
 //  0 No debug
@@ -43,7 +44,7 @@
 #define VALVE_ACTIVATION_TIME 15
 #define TEMP_MIN 5.0
 #define TEMP_MAX 35.0
-#define MAX_WEEKLY_STEPS 10
+#define MAX_WEEKLY_STEPS 70
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
 
@@ -74,8 +75,8 @@ struct tm temp_tm;
 uint16_t now_tow;
 
 // Schedule table
-struct {uint16_t tow; float temperature;} schedule[MAX_WEEKLY_STEPS];
-uint8_t current_step = MAX_WEEKLY_STEPS + 1;
+struct programStep {uint16_t tow; float temperature;};
+typedef struct programStep programStep;
 
 
 // LCD
