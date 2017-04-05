@@ -516,16 +516,16 @@ void select_valve_status()
 
 void check_schedule()
 {
-  int step = 0;
+  int stepIdx = 0;
   float newtemp = TemperatureHandler.Min;
-  programStep tempStep;
+  programStep step;
 
-  while (step < MAX_WEEKLY_STEPS)
+  while (stepIdx < MAX_WEEKLY_STEPS)
   {
-    EEPROM.get(step * sizeof(programStep), tempStep);
-    if (tempStep.tow > now_tow) break;
-    newtemp = tempStep.temperature;
-    step++;
+    EEPROM.get(stepIdx * sizeof(programStep), step);
+    if (step.tow > now_tow) break;
+    newtemp = step.temperature;
+    stepIdx++;
   }
 
   #if DEBUG > 2
@@ -541,23 +541,25 @@ void check_schedule()
 }
 
 
-void putStep(int step, programStep stepValue)
+void putStep(int stepIdx, programStep step)
 {
   programStep tempStep;
-  step = step * sizeof(programStep);
+  stepIdx = stepIdx * sizeof(programStep);
+
   #if DEBUG > 2
-    Serial.print(F("Putting "));
-    Serial.print(stepValue.tow);
+    Serial.print(F("Storing "));
+    Serial.print(step.tow);
     Serial.print(F("/"));
-    Serial.print(stepValue.temperature);
+    Serial.print(step.temperature);
     Serial.print(F(" @ "));
-    Serial.print(step);
+    Serial.print(stepIdx);
   #endif
-  EEPROM.get(step, tempStep);
+
+  EEPROM.get(stepIdx, tempStep);
   
-  if (stepValue.tow != tempStep.tow || stepValue.temperature != tempStep.temperature)
+  if (step.tow != tempStep.tow || step.temperature != tempStep.temperature)
   {
-    EEPROM.put(step, stepValue);
+    EEPROM.put(stepIdx, step);
     #if DEBUG > 2
       Serial.println(F(" Done!"));
     #endif
@@ -577,16 +579,16 @@ void init_schedule()
   // Initialize the weekly schedule
   programStep tempStep;
 
-  // This is just for testing. Must be replaced with code to read values from EEPROM)
-  tempStep.tow = now_tow - 1;
+  // This is just for testing. Must be replaced with code to get values from the controller...)
+  tempStep.tow = now_tow;
   tempStep.temperature = 25.0;
   putStep(0, tempStep);
 
-  tempStep.tow = now_tow + 1;
+  tempStep.tow = now_tow + 1;  // This is wrong, I know. OK unless at the turn of the hour...
   tempStep.temperature = TEMP_MAX;
   putStep(1, tempStep);
 
-  tempStep.tow = now_tow + 2;
+  tempStep.tow = now_tow + 2;  // This is wrong, I know. OK unless at the turn of the hour...
   tempStep.temperature = TEMP_MIN;
   putStep(2, tempStep);
 

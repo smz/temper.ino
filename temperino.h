@@ -82,9 +82,9 @@ typedef struct programStep programStep;
 // LCD
 #ifdef LCD
   #include <LiquidCrystal.h>
+  LiquidCrystal lcd(LCD_PINS);
   char lcd_line1[17];
   char lcd_line2[17];
-  LiquidCrystal lcd(LCD_PINS);
 #endif
 
 
