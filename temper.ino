@@ -9,38 +9,44 @@ void NullFunction()
 void SwitchToSetTime()
 {
   localtime_r(&now, &temp_tm);
-  SetYearHandler.value    = temp_tm.tm_year;
-  SetMonthHandler.value   = temp_tm.tm_mon; 
-  SetDayHandler.value     = temp_tm.tm_mday;
-  SetHoursHandler.value   = temp_tm.tm_hour;
-  SetMinutesHandler.value = temp_tm.tm_min;
-  SetSecondsHandler.value = temp_tm.tm_sec;
+  SetYearHandler.value    = (float) temp_tm.tm_year;
+  SetMonthHandler.value   = (float) temp_tm.tm_mon;
+  SetDayHandler.value     = (float) temp_tm.tm_mday;
+  SetHoursHandler.value   = (float) temp_tm.tm_hour;
+  SetMinutesHandler.value = (float) temp_tm.tm_min;
+  SetSecondsHandler.value = (float) temp_tm.tm_sec;
   ActiveHandler = &SetYearHandler;
 }
 void SwitchToSetMonth()
 {
+  temp_tm.tm_year = (int16_t) SetYearHandler.value;
   ActiveHandler = &SetMonthHandler;
 }
 void SwitchToSetDay()
 {
+  temp_tm.tm_mon = (int8_t) SetMonthHandler.value;
   ActiveHandler = &SetDayHandler;
 }
 void SwitchToSetHours()
 {
+  temp_tm.tm_mday = (int8_t) SetDayHandler.value;
   ActiveHandler = &SetHoursHandler;
 }
 void SwitchToSetMinutes()
 {
+  temp_tm.tm_hour = (int8_t) SetHoursHandler.value;
   ActiveHandler = &SetMinutesHandler;
 }
 void SwitchToSetSeconds()
 {
+  temp_tm.tm_min = (int8_t) SetMinutesHandler.value;
   ActiveHandler = &SetSecondsHandler;
 }
 
 
 void SetTime()
 {
+  temp_tm.tm_sec = (int8_t) SetSecondsHandler.value;
   time_t temp = mktime(&temp_tm);
   Rtc.SetTime(&temp);
   SwitchToTemperature();
@@ -57,7 +63,7 @@ void SwitchToOverrideTime()
   ActiveHandler = &OverrideTimeHandler;
   #if DEBUG > 1
     Serial.print(timestamp);
-    Serial.println(F(" Switching to Override setting mode."));
+    Serial.println(F(" Switching to Override"));
   #endif
 }
 
@@ -67,7 +73,7 @@ void SwitchToTemperature()
   ActiveHandler = &TemperatureHandler;
   #if DEBUG > 1
     Serial.print(timestamp);
-    Serial.println(F(" Switching to Temperature setting mode."));
+    Serial.println(F(" Switching to Temperature"));
   #endif
 }
 
@@ -87,6 +93,7 @@ void UpdateActiveHandlerValue (int16_t value)
   ActiveHandler->value += value * ActiveHandler->Increment;
   ActiveHandler->value = max(ActiveHandler->Min, ActiveHandler->value);
   ActiveHandler->value = min(ActiveHandler->Max, ActiveHandler->value);
+
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.print(F(" Value: "));
@@ -263,20 +270,20 @@ void setup()
   TemperatureHandler.Increment =                   TEMP_INCREMENT;
   TemperatureHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
   TemperatureHandler.DisplayFunction =             &DisplayTemperature;
-  TemperatureHandler.ButtonClickedFunction =       &SwitchToOverrideTime;  
+  TemperatureHandler.ButtonClickedFunction =       &SwitchToOverrideTime;
   TemperatureHandler.ButtonDoubleClickedFunction = &NullFunction;
-  TemperatureHandler.ButtonHeldFunction =          &NullFunction;  
-  TemperatureHandler.ButtonReleasedFunction =      &SwitchToSetTime;  
-  
+  TemperatureHandler.ButtonHeldFunction =          &NullFunction;
+  TemperatureHandler.ButtonReleasedFunction =      &SwitchToSetTime;
+
   OverrideTimeHandler.Min =                         0;
   OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
   OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
   OverrideTimeHandler.EncoderRotatedFunction =      &UpdateActiveHandlerValue;
   OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
-  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;  
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;
   OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
-  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;  
-  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;  
+  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
+  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
 
   SetYearHandler.Min =                         117;
   SetYearHandler.Max =                         199;
@@ -316,7 +323,7 @@ void setup()
   SetHoursHandler.ButtonClickedFunction =       &SwitchToSetMinutes;
   SetHoursHandler.ButtonDoubleClickedFunction = &NullFunction;
   SetHoursHandler.ButtonHeldFunction =          &NullFunction;
-  SetHoursHandler.ButtonReleasedFunction =      &ToggleButtonAcceleration;
+  SetHoursHandler.ButtonReleasedFunction =      &NullFunction;
 
   SetMinutesHandler.Min =                         0;
   SetMinutesHandler.Max =                         59;
@@ -395,7 +402,7 @@ void loop()
       #if DEBUG > 0
         strcpy(timestamp, isotime(&now_tm));
       #endif
-      #if DEBUG > 3
+      #if DEBUG > 95
         Serial.print(timestamp);
         Serial.print(F(" year="));
         Serial.print(now_tm.tm_year);
@@ -553,7 +560,7 @@ void putStep(int stepIdx, programStep step)
   #ifndef programStepsBaseAddress
     #define programStepsBaseAddress 0
   #endif
-  
+
   programStep tempStep;
   stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
 
@@ -567,7 +574,7 @@ void putStep(int stepIdx, programStep step)
   #endif
 
   EEPROM.get(stepIdx, tempStep);
-  
+
   if (step.tow != tempStep.tow || step.temperature != tempStep.temperature)
   {
     EEPROM.put(stepIdx, step);
@@ -581,7 +588,7 @@ void putStep(int stepIdx, programStep step)
       Serial.println(F(" Same, skipping!"));
   }
   #endif
-  
+
 }
 
 
@@ -617,11 +624,23 @@ void init_schedule()
 
   tempStep.tow = 65535;
   tempStep.temperature = TEMP_MIN;
-  
+
   for (int step = 6; step < MAX_WEEKLY_STEPS; step++)
   {
     putStep(step, tempStep);
   }
+}
+
+
+// GetFormattedOverrideTime
+char* GetFormattedOverrideTime (void)
+{
+  #define OVT_ROUNDING 59UL
+  static char str[6];
+  uint16_t ovh = (OverrideTimeHandler.value + OVT_ROUNDING) / 3600;
+  uint16_t ovm = ((OverrideTimeHandler.value + OVT_ROUNDING) - ovh * 3600L) / 60;
+  sprintf(str, "%2.2i:%2.2i", ovh, ovm);
+  return str;
 }
 
 
@@ -653,23 +672,11 @@ void DisplayTemperature ()
 }
 
 
-// GetFormattedOverrideTime
-char* GetFormattedOverrideTime (void)
-{
-  #define OVT_ROUNDING 59UL
-  static char str[6];
-  uint16_t ovh = (OverrideTimeHandler.value + OVT_ROUNDING) / 3600;
-  uint16_t ovm = ((OverrideTimeHandler.value + OVT_ROUNDING) - ovh * 3600L) / 60;
-  sprintf(str, "%2.2i:%2.2i", ovh, ovm);
-  return str;
-}
-
-
 // Display override time on LCD
 void DisplayOverrideTime ()
 {
-  sprintf(lcd_line1, "OVR time: %5.5s", GetFormattedOverrideTime());
-  sprintf(lcd_line2, "");
+  sprintf(lcd_line1, "Override time:");
+  strcpy(lcd_line2, GetFormattedOverrideTime());
   refresh_lcd();
 }
 
@@ -677,12 +684,12 @@ void DisplayOverrideTime ()
 void DisplayDateSetting()
 {
   strcpy(lcd_line1, "Set the date:");
-  temp_tm.tm_year = SetYearHandler.value;
-  temp_tm.tm_mon = SetMonthHandler.value;
-  temp_tm.tm_mday = SetDayHandler.value;
-  temp_tm.tm_hour = SetHoursHandler.value;
-  temp_tm.tm_min = SetMinutesHandler.value;
-  temp_tm.tm_sec = SetSecondsHandler.value;
+  temp_tm.tm_year = (int16_t) SetYearHandler.value;
+  temp_tm.tm_mon = (int8_t) SetMonthHandler.value;
+  temp_tm.tm_mday = (int8_t) SetDayHandler.value;
+  temp_tm.tm_hour = (int8_t) SetHoursHandler.value;
+  temp_tm.tm_min = (int8_t) SetMinutesHandler.value;
+  temp_tm.tm_sec = (int8_t) SetSecondsHandler.value;
   isotime_r(&temp_tm, lcd_line2);
   lcd_line2[10] = '\0';
   refresh_lcd();
@@ -692,12 +699,12 @@ void DisplayTimeSetting()
 {
   char str_temp[16];
   strcpy(lcd_line1, "Set the time:");
-  temp_tm.tm_year = SetYearHandler.value;
-  temp_tm.tm_mon = SetMonthHandler.value;
-  temp_tm.tm_mday = SetDayHandler.value;
-  temp_tm.tm_hour = SetHoursHandler.value;
-  temp_tm.tm_min = SetMinutesHandler.value;
-  temp_tm.tm_sec = SetSecondsHandler.value;
+  temp_tm.tm_year = (int16_t) SetYearHandler.value;
+  temp_tm.tm_mon = (int8_t) SetMonthHandler.value;
+  temp_tm.tm_mday = (int8_t) SetDayHandler.value;
+  temp_tm.tm_hour = (int8_t) SetHoursHandler.value;
+  temp_tm.tm_min = (int8_t) SetMinutesHandler.value;
+  temp_tm.tm_sec = (int8_t) SetSecondsHandler.value;
   isotime_r(&temp_tm, str_temp);
   strcpy(lcd_line2, &str_temp[11]);
   refresh_lcd();
@@ -707,84 +714,91 @@ void DisplayTimeSetting()
 
 
 #ifdef SH1106
-// Actually print the content of the two line buffers on the LCD
-void refresh_lcd()
-{
-  u8g2.firstPage();
-  for (int k = strlen(lcd_line1); k < 16; k++) lcd_line1[k] = " ";
-  lcd_line1[16] = '\0';
-  for (int k = strlen(lcd_line2); k < 16; k++) lcd_line2[k] = " ";
-  lcd_line2[16] = '\0';
-  do {
-    u8g2.setFont(u8g2_font_8x13B_tf);
-    u8g2.drawStr(0, 13, lcd_line1);
-    u8g2.drawStr(0, 30, lcd_line2);
-  } while (u8g2.nextPage());
-}
-
-
 // Display temperature on LCD
 void DisplayTemperature ()
 {
-  char str_temp[16];
-  char str_ovt[6];
-  dtostrf(temperature, 5, 1, str_temp);
-  if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line1, "A%5s  %2i:%2.2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
-  dtostrf(TemperatureHandler.value, 5, 1, str_temp);
-  if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (valve_status == valve_target ? (valve_target ? "ON" : "OF") : (valve_target ? "on" : "of")));
-  refresh_lcd();
-}
+  u8g2.firstPage();
+  do {
+    // Temperature
+    u8g2.setFont(BIG_FONT);
+    u8g2.drawStr(0, 16, "T");
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(10, 16, "A:");
+    u8g2.setFont(BIG_FONT);
+    u8g2.setCursor(35,16);
+    dtostrf(temperature, 5, 1, tempString);
+    if (strlen(tempString) > 5) tempString[5] = '\0';
+    u8g2.print(&tempString[1]);
 
+    // Status
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(105, 10, (valve_status == valve_target ? (valve_target ? "ON" : "OFF") : (valve_target ? "on" : "off")));
 
-// GetFormattedOverrideTime
-char* GetFormattedOverrideTime (void)
-{
-  #define OVT_ROUNDING 59UL
-  static char str[6];
-  uint16_t ovh = (OverrideTimeHandler.value + OVT_ROUNDING) / 3600;
-  uint16_t ovm = ((OverrideTimeHandler.value + OVT_ROUNDING) - ovh * 3600L) / 60;
-  sprintf(str, "%2.2i:%2.2i", ovh, ovm);
-  return str;
+    // Setpoint
+    u8g2.setFont(BIG_FONT);
+    u8g2.drawStr(0, 40, "T");
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(10, 40, "S:");
+    u8g2.setFont(BIG_FONT);
+    u8g2.setCursor(35,40);
+    dtostrf(TemperatureHandler.value, 5, 1, tempString);
+    if (strlen(tempString) > 5) tempString[5] = '\0';
+    u8g2.print(&tempString[1]);
+
+    // Time
+    sprintf(tempString, "%2.2i:%2.2i:%2.2i", now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
+    u8g2.setFont(SMALL_FONT);
+    u8g2.setCursor(0,60);
+    u8g2.print(tempString);
+  } while (u8g2.nextPage());
 }
 
 
 // Display override time on LCD
 void DisplayOverrideTime ()
 {
-  sprintf(lcd_line1, "OVR time: %5.5s", GetFormattedOverrideTime());
-  sprintf(lcd_line2, "");
-  refresh_lcd();
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(0, 16, "Override time:");
+    u8g2.setFont(HUGE_FONT);
+    u8g2.drawStr(0, 45, GetFormattedOverrideTime());
+  } while (u8g2.nextPage());
 }
 
 
 void DisplayDateSetting()
 {
-  strcpy(lcd_line1, "Set the date:");
-  temp_tm.tm_year = SetYearHandler.value;
-  temp_tm.tm_mon = SetMonthHandler.value;
-  temp_tm.tm_mday = SetDayHandler.value;
-  temp_tm.tm_hour = SetHoursHandler.value;
-  temp_tm.tm_min = SetMinutesHandler.value;
-  temp_tm.tm_sec = SetSecondsHandler.value;
-  isotime_r(&temp_tm, lcd_line2);
-  lcd_line2[10] = '\0';
-  refresh_lcd();
+  temp_tm.tm_year = (int16_t) SetYearHandler.value;
+  temp_tm.tm_mon = (int8_t) SetMonthHandler.value;
+  temp_tm.tm_mday = (int8_t) SetDayHandler.value;
+  temp_tm.tm_hour = (int8_t) SetHoursHandler.value;
+  temp_tm.tm_min = (int8_t) SetMinutesHandler.value;
+  temp_tm.tm_sec = (int8_t) SetSecondsHandler.value;
+  isotime_r(&temp_tm, tempString);
+  tempString[10] = '\0';
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(0, 16, "Set the date:");
+    u8g2.drawStr(0, 45, tempString);
+  } while (u8g2.nextPage());
 }
 
 void DisplayTimeSetting()
 {
-  char str_temp[16];
-  strcpy(lcd_line1, "Set the time:");
-  temp_tm.tm_year = SetYearHandler.value;
-  temp_tm.tm_mon = SetMonthHandler.value;
-  temp_tm.tm_mday = SetDayHandler.value;
-  temp_tm.tm_hour = SetHoursHandler.value;
-  temp_tm.tm_min = SetMinutesHandler.value;
-  temp_tm.tm_sec = SetSecondsHandler.value;
-  isotime_r(&temp_tm, str_temp);
-  strcpy(lcd_line2, &str_temp[11]);
-  refresh_lcd();
+  temp_tm.tm_year = (int16_t) SetYearHandler.value;
+  temp_tm.tm_mon = (int8_t) SetMonthHandler.value;
+  temp_tm.tm_mday = (int8_t) SetDayHandler.value;
+  temp_tm.tm_hour = (int8_t) SetHoursHandler.value;
+  temp_tm.tm_min = (int8_t) SetMinutesHandler.value;
+  temp_tm.tm_sec = (int8_t) SetSecondsHandler.value;
+  isotime_r(&temp_tm, tempString);
+  u8g2.firstPage();
+  do {
+    u8g2.setFont(SMALL_FONT);
+    u8g2.drawStr(0, 16, "Set the time:");
+    u8g2.drawStr(0, 45, &tempString[11]);
+  } while (u8g2.nextPage());
 }
 #endif

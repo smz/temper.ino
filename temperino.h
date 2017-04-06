@@ -9,7 +9,10 @@
 //  4 + more stuff
 // 99 Debug all
 #define DEBUG 3
-#include "debug.h"
+
+#if DEBUG > 0
+  #include "debug.h"
+#endif
 
 // Project configuration parameters
 #undef  DS3231
@@ -41,7 +44,7 @@
 #define TEMP_INCREMENT 0.5
 #define OVERRIDE_TIME_MAX 86400
 #define OVERRIDE_TIME_INCREMENT 300
-#define VALVE_ACTIVATION_TIME 15
+#define VALVE_ACTIVATION_TIME 5
 #define TEMP_MIN 5.0
 #define TEMP_MAX 35.0
 #define MAX_WEEKLY_STEPS 70
@@ -75,8 +78,7 @@ struct tm temp_tm;
 uint16_t now_tow;
 
 // Schedule table
-struct programStep {uint16_t tow; float temperature;};
-typedef struct programStep programStep;
+typedef struct {uint16_t tow; float temperature;} programStep;
 uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 #define programStepsBaseAddress 0
 
@@ -93,9 +95,12 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 // SH1106 OLED
 #ifdef SH1106
   #include <U8g2lib.h>
+//#define HUGE_FONT u8g2_font_profont29_tr
+  #define HUGE_FONT u8g2_font_profont22_tr
+  #define BIG_FONT u8g2_font_profont22_tr
+  #define SMALL_FONT u8g2_font_8x13B_tf
   U8G2_SH1106_128X64_VCOMH0_1_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
-  char lcd_line1[17];
-  char lcd_line2[17];
+  char tempString[17];
 #endif
 
 
@@ -134,7 +139,7 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 // Rotary Encoder
 // Uses the ClickEncoder library by 0xPIT (https://github.com/0xPIT/encoder)
 // as implemented by soligen2010 (https://github.com/soligen2010/encoder)
-// See: 
+// See:
 // ClickEncoder needs the Timer1 library (http://playground.arduino.cc/Code/Timer1)
 // as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
 #include <TimerOne.h>
@@ -150,7 +155,7 @@ typedef (EncoderRotatedFunction_t)(int16_t value);
 typedef (DisplayFunction_t)();
 typedef (ButtonFunction_t)();
 
-struct EncoderHandler_t
+typedef struct
 {
   float value;
   float Min;
@@ -162,14 +167,14 @@ struct EncoderHandler_t
   ButtonFunction_t *ButtonDoubleClickedFunction;
   ButtonFunction_t *ButtonHeldFunction;
   ButtonFunction_t *ButtonReleasedFunction;
-};
+} EncoderHandler_t;
 
-struct EncoderHandler_t TemperatureHandler;
-struct EncoderHandler_t OverrideTimeHandler;
-struct EncoderHandler_t SetYearHandler;
-struct EncoderHandler_t SetMonthHandler;
-struct EncoderHandler_t SetDayHandler;
-struct EncoderHandler_t SetHoursHandler;
-struct EncoderHandler_t SetMinutesHandler;
-struct EncoderHandler_t SetSecondsHandler;
-struct EncoderHandler_t *ActiveHandler = &TemperatureHandler;
+EncoderHandler_t TemperatureHandler;
+EncoderHandler_t OverrideTimeHandler;
+EncoderHandler_t SetYearHandler;
+EncoderHandler_t SetMonthHandler;
+EncoderHandler_t SetDayHandler;
+EncoderHandler_t SetHoursHandler;
+EncoderHandler_t SetMinutesHandler;
+EncoderHandler_t SetSecondsHandler;
+EncoderHandler_t *ActiveHandler = &TemperatureHandler;
