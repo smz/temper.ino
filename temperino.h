@@ -62,6 +62,8 @@
 // i18n
 #define MONTHS "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
 #define WEEKDAYS "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa"
+#define TIME_SETTINGS_MSG "Set the time:"
+#define OVERRIDE_TIME_SETTINGS_MSG "Override time:"
 
 // Global variables
 #if DEBUG > 90

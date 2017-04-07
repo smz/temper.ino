@@ -28,7 +28,7 @@ void SwitchToSetTime()
     Serial.println(F(" Switching to Time"));
   #endif
   localtime_r(&now, &temp_tm);
-  temp_tm.tm_sec  = 0;
+  temp_tm.tm_sec = 0;
   SwitchToSetYear();
 }
 
@@ -784,8 +784,8 @@ void refresh_lcd()
 }
 
 
-// Display temperature on LCD
-void DisplayTemperature ()
+// Main display page
+void DisplayTemperature()
 {
   char str_temp[16];
   char str_ovt[6];
@@ -799,24 +799,27 @@ void DisplayTemperature ()
 }
 
 
-// Display override time on LCD
-void DisplayOverrideTime ()
+// Display page for the override time setting
+void DisplayOverrideTime()
 {
-  strcpy(lcd_line1, "Override time:");
+  strcpy(lcd_line1, OVERRIDE_TIME_SETTINGS_MSG);
   strcpy(lcd_line2, GetFormattedOverrideTime());
   refresh_lcd();
 }
 
 
+// Display page for the time setting
 void DisplayTimeSetting()
 {
-  strcpy(lcd_line1, "Set the time:");
+  strcpy(lcd_line1, TIME_SETTINGS_MSG);
   isotime_r(&temp_tm, tempString);
   tempString[16] = '\0';
   strcpy(lcd_line2, tempString);
   refresh_lcd();
 }
 
+
+// Turn the display off
 void clearDisplay()
 {
   lcd_line1[0] = '\0';
@@ -824,6 +827,8 @@ void clearDisplay()
   refresh_lcd();
 }
 
+
+// Display the OFF message when the system is inactive
 void DisplayOffStatus()
 {
   if (now > LastTouched + SLEEP_AFTER)
@@ -842,8 +847,8 @@ void DisplayOffStatus()
 
 
 #ifdef SH1106
-// Display temperature on LCD
-void DisplayTemperature ()
+// Main display page
+void DisplayTemperature()
 {
   u8g2.firstPage();
   do {
@@ -890,7 +895,6 @@ void DisplayTemperature ()
     u8g2.print(now_tm.tm_mday);
     u8g2.print(' ');
     u8g2.print(months[now_tm.tm_mon]);
-
     sprintf(tempString, "%2.2i:%2.2i:%2.2i", now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
     u8g2.setCursor(73,63);
     u8g2.print(tempString);
@@ -905,19 +909,20 @@ void DisplayTemperature ()
 }
 
 
-// Display override time on LCD
-void DisplayOverrideTime ()
+// Display page for the override time setting
+void DisplayOverrideTime()
 {
   u8g2.firstPage();
   do {
     u8g2.setFont(MEDIUM_FONT);
-    u8g2.drawStr(0, 16, "Override time:");
+    u8g2.drawStr(0, 16, OVERRIDE_TIME_SETTINGS_MSG);
     u8g2.setFont(HUGE_FONT);
     u8g2.drawStr(0, 45, GetFormattedOverrideTime());
   } while (u8g2.nextPage());
 }
 
 
+// Display page for the time setting
 void DisplayTimeSetting()
 {
   u8g2_uint_t x0 = 0;
@@ -962,18 +967,22 @@ void DisplayTimeSetting()
   u8g2.firstPage();
   do {
     u8g2.setFont(MEDIUM_FONT);
-    u8g2.drawStr(0, 13, "Set the time:");
+    u8g2.drawStr(0, 13, TIME_SETTINGS_MSG);
     u8g2.drawStr(0, 38, tempString);
     u8g2.drawStr(0, 61, &tempString[11]);
     u8g2.drawLine(x0, y, x1, y);
   } while (u8g2.nextPage());
 }
 
+
+// Turn the display off
 void clearDisplay()
 {
   u8g2.clearDisplay();
 }
 
+
+// Display the OFF message when the system is inactive
 void DisplayOffStatus()
 {
   if (now > LastTouched + SLEEP_AFTER)
