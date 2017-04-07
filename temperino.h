@@ -59,7 +59,7 @@
   #include "eu_dst.h"
 #endif
 
-// i11n
+// i18n
 #define MONTHS "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
 #define WEEKDAYS "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa"
 
