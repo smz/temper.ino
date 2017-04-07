@@ -44,13 +44,17 @@
 #define TEMP_INCREMENT 0.5
 #define OVERRIDE_TIME_MAX 86400
 #define OVERRIDE_TIME_INCREMENT 300
-#define VALVE_ACTIVATION_TIME 5
+#define VALVE_ACTIVATION_TIME 15
 #define TEMP_MIN 5.0
 #define TEMP_MAX 35.0
 #define MAX_WEEKLY_STEPS 70
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
+#define SLEEP_AFTER 15
 
+// i11n
+#define MONTHS "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
+#define WEEKDAYS "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa"
 
 // Global variables
 #if DEBUG > 90
@@ -75,15 +79,17 @@ bool valve_status;
 time_t prev_valve_time;
 unsigned long prev_millis = 0;
 time_t now;
+time_t LastTouched;
 struct tm now_tm;
 struct tm temp_tm;
 uint16_t now_tow;
 char tempString[32];
+bool status;
 
 // Schedule table
 typedef struct {uint16_t tow; float temperature;} programStep;
 uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
-#define programStepsBaseAddress 0
+#define programStepsBaseAddress (0 + sizeof(bool))  // We have "status" before
 
 
 // LCD
@@ -101,7 +107,8 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 //#define HUGE_FONT u8g2_font_profont29_tr
   #define HUGE_FONT u8g2_font_profont22_tr
   #define BIG_FONT u8g2_font_profont22_tr
-  #define SMALL_FONT u8g2_font_8x13B_tf
+  #define MEDIUM_FONT u8g2_font_8x13B_tr
+  #define SMALL_FONT u8g2_font_7x13B_tr
   U8G2_SH1106_128X64_VCOMH0_1_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 #endif
 
@@ -185,4 +192,6 @@ EncoderHandler_t SetDayHandler;
 EncoderHandler_t SetHoursHandler;
 EncoderHandler_t SetMinutesHandler;
 EncoderHandler_t SetSecondsHandler;
-EncoderHandler_t *ActiveHandler = &TemperatureHandler;
+EncoderHandler_t SleepHandler;
+EncoderHandler_t OffHandler;
+EncoderHandler_t *ActiveHandler;
