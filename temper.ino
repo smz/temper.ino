@@ -11,12 +11,12 @@ void ChangeStatus()
   {
     status = false;
     digitalWrite(VALVE_PIN, LOW);
-    ActiveHandler = &OffHandler;
+    handler = &OffHandler;
   }
   else
   {
     status = true;
-    ActiveHandler = &TemperatureHandler;
+    handler = &TemperatureHandler;
   }
   EEPROM.put(0, status);
 }
@@ -27,47 +27,47 @@ void SwitchToSetTime()
     Serial.print(timestamp);
     Serial.println(F(" Switching to Time"));
   #endif
-  localtime_r(&now, &temp_tm);
-  temp_tm.tm_sec = 0;
+  localtime_r(&now, &tmSettings);
+  tmSettings.tm_sec = 0;
   SwitchToSetYear();
 }
 
 void SwitchToSetYear()
 {
-  ActiveHandler = &SetYearHandler;
+  handler = &SetYearHandler;
 }
 
 void SwitchToSetMonth()
 {
-  ActiveHandler = &SetMonthHandler;
+  handler = &SetMonthHandler;
 }
 
 void SwitchToSetDay()
 {
-  ActiveHandler = &SetDayHandler;
+  handler = &SetDayHandler;
 }
 
 void SwitchToSetHours()
 {
-  ActiveHandler = &SetHoursHandler;
+  handler = &SetHoursHandler;
 }
 
 void SwitchToSetMinutes()
 {
-  ActiveHandler = &SetMinutesHandler;
+  handler = &SetMinutesHandler;
 }
 
 void SwitchToSetSeconds()
 {
-  ActiveHandler = &SetSecondsHandler;
+  handler = &SetSecondsHandler;
 }
 
 void SetTime()
 {
-  now = mktime(&temp_tm);
+  now = mktime(&tmSettings);
   Rtc.SetTime(&now);
-  LastTouched = now;
-  localtime_r(&now, &now_tm);
+  lastTouched = now;
+  localtime_r(&now, &tmNow);
   SwitchToTemperature();
 }
 
@@ -76,10 +76,10 @@ void SwitchToOverrideTime()
 {
   // Adjust the actual value (which is decremented by the time running in steps of 1 seconds)
   // to the nearest "Increment" value (5 minutes by default)
-  uint16_t temp = (OverrideTime + OverrideTimeHandler.Increment / 2) / OverrideTimeHandler.Increment;
-  OverrideTime = temp * OverrideTimeHandler.Increment;
+  uint16_t temp = (overrideTime + OverrideTimeHandler.Increment / 2) / OverrideTimeHandler.Increment;
+  overrideTime = temp * OverrideTimeHandler.Increment;
 
-  ActiveHandler = &OverrideTimeHandler;
+  handler = &OverrideTimeHandler;
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.println(F(" Switching to Override"));
@@ -89,7 +89,7 @@ void SwitchToOverrideTime()
 
 void SwitchToTemperature()
 {
-  ActiveHandler = &TemperatureHandler;
+  handler = &TemperatureHandler;
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.println(F(" Switching to Temperature"));
@@ -97,90 +97,90 @@ void SwitchToTemperature()
 }
 
 
-void ToggleButtonAcceleration()
-{
-  encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-  #if DEBUG > 1
-    Serial.print(F("Acceleration "));
-    Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
-  #endif
-}
+// void ToggleButtonAcceleration()
+// {
+//   encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
+//   #if DEBUG > 1
+//     Serial.print(F("Acceleration "));
+//     Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
+//   #endif
+// }
 
 
 void UpdateFloatValue (int16_t value)
 {
-  *ActiveHandler->float_value += value * ActiveHandler->Increment;
-  if (*ActiveHandler->float_value > ActiveHandler->Max)
+  *handler->float_value += value * handler->Increment;
+  if (*handler->float_value > handler->Max)
   {
-    *ActiveHandler->float_value = ActiveHandler->Max;
+    *handler->float_value = handler->Max;
   }
-  if (*ActiveHandler->float_value < ActiveHandler->Min)
+  if (*handler->float_value < handler->Min)
   {
-    *ActiveHandler->float_value = ActiveHandler->Min;
+    *handler->float_value = handler->Min;
   }
 
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.print(F(" Value (float): "));
-    Serial.println(*ActiveHandler->float_value);
+    Serial.println(*handler->float_value);
   #endif
 }
 
 void UpdateUint8Value (int16_t value)
 {
-  int increment = value * ActiveHandler->Increment;
+  int increment = value * handler->Increment;
 
-  if (increment < 0 & *ActiveHandler->uint8_value < abs(increment))
+  if (increment < 0 & *handler->uint8_value < abs(increment))
   {
-    *ActiveHandler->uint8_value = 0;
+    *handler->uint8_value = 0;
   }
   else
   {
-    *ActiveHandler->uint8_value += increment;
+    *handler->uint8_value += increment;
   }
 
-  if (*ActiveHandler->uint8_value > ActiveHandler->Max)
+  if (*handler->uint8_value > handler->Max)
   {
-    *ActiveHandler->uint8_value = ActiveHandler->Max;
+    *handler->uint8_value = handler->Max;
   }
-  if (*ActiveHandler->uint8_value < ActiveHandler->Min)
+  if (*handler->uint8_value < handler->Min)
   {
-    *ActiveHandler->uint8_value = ActiveHandler->Min;
+    *handler->uint8_value = handler->Min;
   }
 
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.print(F(" Value (uint8): "));
-    Serial.println(*ActiveHandler->uint8_value);
+    Serial.println(*handler->uint8_value);
   #endif
 }
 
 void UpdateUint16Value (int16_t value)
 {
-  int increment = value * ActiveHandler->Increment;
+  int increment = value * handler->Increment;
 
-  if (increment < 0 & *ActiveHandler->uint16_value < abs(increment))
+  if (increment < 0 & *handler->uint16_value < abs(increment))
   {
-    *ActiveHandler->uint16_value = 0;
+    *handler->uint16_value = 0;
   }
   else
   {
-    *ActiveHandler->uint16_value += increment;
+    *handler->uint16_value += increment;
   }
 
-  if (*ActiveHandler->uint16_value > ActiveHandler->Max)
+  if (*handler->uint16_value > handler->Max)
   {
-    *ActiveHandler->uint16_value = ActiveHandler->Max;
+    *handler->uint16_value = handler->Max;
   }
-  if (*ActiveHandler->uint16_value < ActiveHandler->Min)
+  if (*handler->uint16_value < handler->Min)
   {
-    *ActiveHandler->uint16_value = ActiveHandler->Min;
+    *handler->uint16_value = handler->Min;
   }
 
   #if DEBUG > 1
     Serial.print(timestamp);
     Serial.print(F(" Value (uint16): "));
-    Serial.println(*ActiveHandler->uint16_value);
+    Serial.println(*handler->uint16_value);
   #endif
 }
 
@@ -194,8 +194,8 @@ void EncoderDispatcher()
   {
     if (value != 0)
     {
-      LastTouched = now;
-      ActiveHandler->EncoderRotatedFunction(value);
+      lastTouched = now;
+      handler->EncoderRotatedFunction(value);
     }
   }
   else
@@ -204,32 +204,32 @@ void EncoderDispatcher()
       Serial.print(timestamp);
       Serial.print(F(" Button "));
     #endif
-    LastTouched = now;
+    lastTouched = now;
     switch (b)
     {
       case ClickEncoder::Clicked:
         #if DEBUG > 1
           Serial.println(F("Clicked"));
         #endif
-        ActiveHandler->ButtonClickedFunction();
+        handler->ButtonClickedFunction();
         break;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
           Serial.println(F("DoubleClicked"));
         #endif
-        ActiveHandler->ButtonDoubleClickedFunction();
+        handler->ButtonDoubleClickedFunction();
         break;
       case ClickEncoder::Held:
         #if DEBUG > 1
           Serial.println(F("Held"));
         #endif
-        ActiveHandler->ButtonHeldFunction();
+        handler->ButtonHeldFunction();
         break;
       case ClickEncoder::Released:
         #if DEBUG > 1
           Serial.println(F("Released"));
         #endif
-        ActiveHandler->ButtonReleasedFunction();
+        handler->ButtonReleasedFunction();
         break;
     }
   }
@@ -366,7 +366,7 @@ void setup()
   TemperatureHandler.ButtonReleasedFunction =       &ChangeStatus;
 
   SetYearHandler.id =                               1;
-  SetYearHandler.uint16_value =                     &temp_tm.tm_year;
+  SetYearHandler.uint16_value =                     &tmSettings.tm_year;
   SetYearHandler.Min =                              117;
   SetYearHandler.Max =                              199;
   SetYearHandler.Increment =                        1;
@@ -378,7 +378,7 @@ void setup()
   SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
 
   SetMonthHandler.id =                              2;
-  SetMonthHandler.uint8_value =                     &temp_tm.tm_mon;
+  SetMonthHandler.uint8_value =                     &tmSettings.tm_mon;
   SetMonthHandler.Min =                             0;
   SetMonthHandler.Max =                             11;
   SetMonthHandler.Increment =                       1;
@@ -390,7 +390,7 @@ void setup()
   SetMonthHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
   SetDayHandler.id =                                3;
-  SetDayHandler.uint8_value =                       &temp_tm.tm_mday;
+  SetDayHandler.uint8_value =                       &tmSettings.tm_mday;
   SetDayHandler.Min =                               1;
   SetDayHandler.Max =                               31;
   SetDayHandler.Increment =                         1;
@@ -402,7 +402,7 @@ void setup()
   SetDayHandler.ButtonReleasedFunction =            &SwitchToTemperature;
 
   SetHoursHandler.id =                              4;
-  SetHoursHandler.uint8_value =                     &temp_tm.tm_hour;
+  SetHoursHandler.uint8_value =                     &tmSettings.tm_hour;
   SetHoursHandler.Min =                             0;
   SetHoursHandler.Max =                             23;
   SetHoursHandler.Increment =                       1;
@@ -414,7 +414,7 @@ void setup()
   SetHoursHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
   SetMinutesHandler.id =                            5;
-  SetMinutesHandler.uint8_value =                   &temp_tm.tm_min;
+  SetMinutesHandler.uint8_value =                   &tmSettings.tm_min;
   SetMinutesHandler.Min =                           0;
   SetMinutesHandler.Max =                           59;
   SetMinutesHandler.Increment =                     1;
@@ -430,7 +430,7 @@ void setup()
   SetMinutesHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
   SetSecondsHandler.id  =                           6;
-  SetSecondsHandler.uint8_value =                   &temp_tm.tm_sec;
+  SetSecondsHandler.uint8_value =                   &tmSettings.tm_sec;
   SetSecondsHandler.Min =                           0;
   SetSecondsHandler.Max =                           59;
   SetSecondsHandler.Increment =                     1;
@@ -442,7 +442,7 @@ void setup()
   SetSecondsHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
   OverrideTimeHandler.id =                          7;
-  OverrideTimeHandler.uint16_value =                &OverrideTime;
+  OverrideTimeHandler.uint16_value =                &overrideTime;
   OverrideTimeHandler.Min =                         0;
   OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
   OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
@@ -459,7 +459,7 @@ void setup()
   SleepHandler.Max =                                0;
   SleepHandler.Increment =                          0;
   SleepHandler.EncoderRotatedFunction =             &SwitchToTemperature;
-  SleepHandler.DisplayFunction =                    &clearDisplay;
+  SleepHandler.DisplayFunction =                    &DisplayOFF;
   SleepHandler.ButtonClickedFunction =              &SwitchToTemperature;
   SleepHandler.ButtonDoubleClickedFunction =        &SwitchToTemperature;
   SleepHandler.ButtonHeldFunction =                 &NullFunction;
@@ -480,19 +480,19 @@ void setup()
   // Initialize global variables
   setpoint = TemperatureHandler.Min;
   temperature = TemperatureHandler.Min;
-  valve_target = false;
+  relayTarget = false;
   pinMode(VALVE_PIN, OUTPUT);
   digitalWrite(VALVE_PIN, LOW);
-  prev_valve_time = now;
-  LastTouched = now;
-  localtime_r(&now, &now_tm);
+  prevActivationTime = now;
+  lastTouched = now;
+  localtime_r(&now, &tmNow);
 
   // Initialize the weekly schedule
-  now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
-  init_schedule();
+  nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
+  GetSchedule();
 
   #if DEBUG > 0
-    strcpy(timestamp, isotime(&now_tm));
+    strcpy(timestamp, isotime(&tmNow));
     Serial.print(timestamp);
     Serial.println(F(" Starting"));
   #endif
@@ -501,11 +501,11 @@ void setup()
   EEPROM.get(0, status);
   if (status)
   {
-     ActiveHandler = &TemperatureHandler;
+     handler = &TemperatureHandler;
   }
   else
   {
-     ActiveHandler = &OffHandler;
+     handler = &OffHandler;
   }
 
   // End of Setup
@@ -517,8 +517,7 @@ void setup()
 void loop()
 {
 
-  valve_status = (bool) digitalRead(VALVE_PIN);
-  unsigned long current_millis = millis();
+  relayStatus = (bool) digitalRead(VALVE_PIN);
 
   #if DEBUG > 90
     loops++;
@@ -526,9 +525,9 @@ void loop()
 
   EncoderDispatcher();
 
-  if (current_millis - prev_millis >= POLLING_TIME)
+  if (millis() - prevMillis >= POLLING_TIME)
   {
-    prev_millis += POLLING_TIME;
+    prevMillis += POLLING_TIME;
 
     #if DEBUG > 90
       PrintLoops();
@@ -538,10 +537,10 @@ void loop()
     if (Rtc.IsDateTimeValid())
     {
       now = Rtc.GetTime();
-      localtime_r(&now, &now_tm);
-      now_tow = now_tm.tm_wday * 10000 + now_tm.tm_hour * 100 + now_tm.tm_min;
+      localtime_r(&now, &tmNow);
+      nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
       #if DEBUG > 0
-        strcpy(timestamp, isotime(&now_tm));
+        strcpy(timestamp, isotime(&tmNow));
       #endif
     }
     else
@@ -557,26 +556,26 @@ void loop()
 
       GetTemperature();
 
-      if (OverrideTime > 0 && ActiveHandler != &OverrideTimeHandler)
+      if (overrideTime > 0 && handler != &OverrideTimeHandler)
       {
-        OverrideTime -= POLLING_TIME / 1000;
+        overrideTime -= POLLING_TIME / 1000;
       }
       else
       {
-        check_schedule();
+        CheckSchedule();
       }
 
-      if (ActiveHandler->id == 0 & now > LastTouched + SLEEP_AFTER)
+      SetRelay();
+
+      if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
       {
-        ActiveHandler = &SleepHandler;
+        handler = &SleepHandler;
       }
-
-      select_valve_status();
     }
   }
 
   // Display status on LCD
-  ActiveHandler->DisplayFunction();
+  handler->DisplayFunction();
 
   // End of Loop
 }
@@ -594,7 +593,7 @@ void GetTemperature()
     temperature = tempsensor.readTempC();
     delay(tempsensor.getSamplingTime());
     tempsensor.shutdown();
- }
+  }
   else
   {
     #if DEBUG > 0
@@ -602,6 +601,7 @@ void GetTemperature()
       Serial.println(F(" MCP9808 failed!"));
     #endif
     temperature = TemperatureHandler.Max;
+    tempFailed = true;
   }
 #endif
 
@@ -609,34 +609,35 @@ void GetTemperature()
   // RTC Temperature
   temperature = Rtc.GetTemperature();
 #endif
+  temperature = round(temperature * 10) / 10.0;
 }
 
 
 
 // See if valve status should be modified
-void select_valve_status()
+void SetRelay()
 {
   if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
   {
     if (setpoint > temperature)
     {
-      valve_target = true;
+      relayTarget = true;
     }
     else
     {
-      valve_target = false;
+      relayTarget = false;
     }
 
-    if (valve_status != valve_target)
+    if (relayStatus != relayTarget)
     {
-      if (now - prev_valve_time > VALVE_ACTIVATION_TIME)
+      if (now - prevActivationTime > RELAY_QUIESCENT_TIME)
       {
-        digitalWrite(VALVE_PIN, valve_target ? HIGH : LOW);
-        prev_valve_time = now;
-        valve_status = valve_target;
+        digitalWrite(VALVE_PIN, relayTarget ? HIGH : LOW);
+        prevActivationTime = now;
+        relayStatus = relayTarget;
         #if DEBUG > 0
           Serial.print(timestamp);
-          Serial.println(valve_status ? F(" Turned on.") : F(" Turned off."));
+          Serial.println(relayStatus ? F(" Turned on.") : F(" Turned off."));
         #endif
       }
       #if DEBUG > 0
@@ -647,7 +648,7 @@ void select_valve_status()
         Serial.print(setpoint);
         Serial.print(F(" Temp: "));
         Serial.print(temperature);
-        Serial.println(valve_target ? F(" Turn on!") : F(" Turn off!"));
+        Serial.println(relayTarget ? F(" Turn on!") : F(" Turn off!"));
       }
       #endif
     }
@@ -656,7 +657,7 @@ void select_valve_status()
 
 
 
-void check_schedule()
+void CheckSchedule()
 {
   int stepIdx = 0;
   float newtemp = TemperatureHandler.Min;
@@ -665,7 +666,7 @@ void check_schedule()
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
     EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
-    if (step.tow > now_tow) break;
+    if (step.tow > nowTOW) break;
     newtemp = step.temperature;
     stepIdx++;
   }
@@ -686,7 +687,7 @@ void check_schedule()
 }
 
 
-void putStep(int stepIdx, programStep step)
+void PutStepToEEPROM(int stepIdx, programStep step)
 {
   programStep tempStep;
   stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
@@ -719,42 +720,42 @@ void putStep(int stepIdx, programStep step)
 }
 
 
-void init_schedule()
+void GetSchedule()
 {
   // Initialize the weekly schedule
   programStep tempStep;
 
   // This is just for testing. Must be replaced with code to get values from the controller...)
-  tempStep.tow = now_tow;
+  tempStep.tow = nowTOW;
   tempStep.temperature = 25.0;
-  putStep(0, tempStep);
+  PutStepToEEPROM(0, tempStep);
 
-  tempStep.tow = now_tow + 1;  // This is wrong, I know. OK unless at the turn of the hour...
+  tempStep.tow = nowTOW + 1;  // This is wrong, I know. OK unless at the turn of the hour...
   tempStep.temperature = TEMP_MAX;
-  putStep(1, tempStep);
+  PutStepToEEPROM(1, tempStep);
 
-  tempStep.tow = now_tow + 2;  // This is wrong, I know. OK unless at the turn of the hour...
+  tempStep.tow = nowTOW + 2;  // This is wrong, I know. OK unless at the turn of the hour...
   tempStep.temperature = TEMP_MIN;
-  putStep(2, tempStep);
+  PutStepToEEPROM(2, tempStep);
 
-  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
+  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
   tempStep.temperature = 25.0;
-  putStep(3, tempStep);
+  PutStepToEEPROM(3, tempStep);
 
-  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
+  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
   tempStep.temperature = TEMP_MAX;
-  putStep(4, tempStep);
+  PutStepToEEPROM(4, tempStep);
 
-  tempStep.tow = ((now_tm.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
+  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
   tempStep.temperature = TEMP_MIN;
-  putStep(5, tempStep);
+  PutStepToEEPROM(5, tempStep);
 
   tempStep.tow = 65535;
   tempStep.temperature = TEMP_MIN;
 
   for (int step = 6; step < MAX_WEEKLY_STEPS; step++)
   {
-    putStep(step, tempStep);
+    PutStepToEEPROM(step, tempStep);
   }
 }
 
@@ -764,8 +765,8 @@ char* GetFormattedOverrideTime (void)
 {
   #define OVT_ROUNDING 59UL
   static char str[6];
-  uint16_t ovh = (OverrideTime + OVT_ROUNDING) / 3600;
-  uint16_t ovm = ((OverrideTime + OVT_ROUNDING) - ovh * 3600L) / 60;
+  uint16_t ovh = (overrideTime + OVT_ROUNDING) / 3600;
+  uint16_t ovm = ((overrideTime + OVT_ROUNDING) - ovh * 3600L) / 60;
   sprintf(str, "%2.2i:%2.2i", ovh, ovm);
   return str;
 }
@@ -773,14 +774,14 @@ char* GetFormattedOverrideTime (void)
 
 #ifdef LCD
 // Actually print the content of the two line buffers on the LCD
-void refresh_lcd()
+void RefreshLCD()
 {
   lcd.setCursor(0, 0);
-  lcd.print(lcd_line1);
-  for (int k = strlen(lcd_line1); k < 16; k++) lcd.print(" ");
+  lcd.print(lcdLine1);
+  for (int k = strlen(lcdLine1); k < 16; k++) lcd.print(" ");
   lcd.setCursor(0, 1);
-  lcd.print(lcd_line2);
-  for (int k = strlen(lcd_line2); k < 16; k++) lcd.print(" ");
+  lcd.print(lcdLine2);
+  for (int k = strlen(lcdLine2); k < 16; k++) lcd.print(" ");
 }
 
 
@@ -790,56 +791,54 @@ void DisplayTemperature()
   char str_temp[16];
   char str_ovt[6];
   dtostrf(temperature, 5, 1, str_temp);
-  if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line1, "A%5s  %2i:%2.2i:%2.2i", str_temp, now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
+  sprintf(lcdLine1, "A%5s  %2i:%2.2i:%2.2i", str_temp, tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
   dtostrf(setpoint, 5, 1, str_temp);
-  if (strlen(str_temp) > 5) str_temp[5] = '\0';
-  sprintf(lcd_line2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (valve_status == valve_target ? (valve_target ? "ON" : "OF") : (valve_target ? "on" : "of")));
-  refresh_lcd();
+  sprintf(lcdLine2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (relayStatus == relayTarget ? (relayTarget ? "ON" : "OF") : (relayTarget ? "on" : "of")));
+  RefreshLCD();
 }
 
 
 // Display page for the override time setting
 void DisplayOverrideTime()
 {
-  strcpy(lcd_line1, OVERRIDE_TIME_SETTINGS_MSG);
-  strcpy(lcd_line2, GetFormattedOverrideTime());
-  refresh_lcd();
+  strcpy(lcdLine1, OVERRIDE_TIME_SETTINGS_MSG);
+  strcpy(lcdLine2, GetFormattedOverrideTime());
+  RefreshLCD();
 }
 
 
 // Display page for the time setting
 void DisplayTimeSetting()
 {
-  strcpy(lcd_line1, TIME_SETTINGS_MSG);
-  isotime_r(&temp_tm, tempString);
+  strcpy(lcdLine1, TIME_SETTINGS_MSG);
+  isotime_r(&tmSettings, tempString);
   tempString[16] = '\0';
-  strcpy(lcd_line2, tempString);
-  refresh_lcd();
+  strcpy(lcdLine2, tempString);
+  RefreshLCD();
 }
 
 
 // Turn the display off
-void clearDisplay()
+void DisplayOFF()
 {
-  lcd_line1[0] = '\0';
-  lcd_line2[0] = '\0';
-  refresh_lcd();
+  lcdLine1[0] = '\0';
+  lcdLine2[0] = '\0';
+  RefreshLCD();
 }
 
 
 // Display the OFF message when the system is inactive
 void DisplayOffStatus()
 {
-  if (now > LastTouched + SLEEP_AFTER)
+  if (now > lastTouched + SLEEP_AFTER)
   {
-    clearDisplay();
+    DisplayOFF();
   }
   else
   {
-    strcpy(lcd_line1, "OFF");
-    lcd_line2[0] = '\0';
-    refresh_lcd();
+    strcpy(lcdLine1, "OFF");
+    lcdLine2[0] = '\0';
+    RefreshLCD();
   }
 }
 #endif
@@ -859,19 +858,32 @@ void DisplayTemperature()
     u8g2.drawStr(10, 14, "A:");
     u8g2.setFont(BIG_FONT);
     u8g2.setCursor(32,14);
-    dtostrf(temperature, 5, 1, tempString);
-    if (strlen(tempString) > 5) tempString[5] = '\0';
-    u8g2.print(&tempString[1]);
-
-    // Status
-    u8g2.setFont(SMALL_FONT);
-    if (valve_target)
+    if (tempFailed)
     {
-      u8g2.drawStr(115, 9, (valve_status == valve_target ? "ON" : "on"));
+      u8g2.print(TEMP_FAILED_MSG);
     }
     else
     {
-      u8g2.drawStr(108, 9, (valve_status == valve_target ? "OFF" : "off"));
+      dtostrf(temperature, 5, 1, tempString);
+      if (temperature > 0)
+      {
+        u8g2.print(&tempString[1]);
+      }
+      else
+      {
+        u8g2.print(tempString);
+      }
+    }
+
+    // Status
+    u8g2.setFont(SMALL_FONT);
+    if (relayTarget)
+    {
+      u8g2.drawStr(115, 9, (relayStatus == relayTarget ? "ON" : "on"));
+    }
+    else
+    {
+      u8g2.drawStr(108, 9, (relayStatus == relayTarget ? "OFF" : "off"));
     }
 
     // Setpoint
@@ -882,7 +894,6 @@ void DisplayTemperature()
     u8g2.setFont(BIG_FONT);
     u8g2.setCursor(32,41);
     dtostrf(setpoint, 5, 1, tempString);
-    if (strlen(tempString) > 5) tempString[5] = '\0';
     u8g2.print(&tempString[1]);
 
     // Time
@@ -890,17 +901,24 @@ void DisplayTemperature()
     static const char * weekdays[] = {WEEKDAYS};
     u8g2.setFont(SMALL_FONT);
     u8g2.setCursor(0,63);
-    u8g2.print(weekdays[now_tm.tm_wday]);
-    u8g2.print(' ');
-    u8g2.print(now_tm.tm_mday);
-    u8g2.print(' ');
-    u8g2.print(months[now_tm.tm_mon]);
-    sprintf(tempString, "%2.2i:%2.2i:%2.2i", now_tm.tm_hour, now_tm.tm_min, now_tm.tm_sec);
-    u8g2.setCursor(73,63);
-    u8g2.print(tempString);
+    if (clockFailed)
+    {
+      u8g2.print(CLOCK_FAILED_MSG);
+    }
+    else
+    {
+      u8g2.print(weekdays[tmNow.tm_wday]);
+      u8g2.print(' ');
+      u8g2.print(tmNow.tm_mday);
+      u8g2.print(' ');
+      u8g2.print(months[tmNow.tm_mon]);
+      sprintf(tempString, "%2.2i:%2.2i:%2.2i", tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
+      u8g2.setCursor(73,63);
+      u8g2.print(tempString);
+    }
 
     //Override
-    if (OverrideTime > 0)
+    if (overrideTime > 0)
     {
       u8g2.setCursor(94,41);
       u8g2.print(GetFormattedOverrideTime());
@@ -929,9 +947,9 @@ void DisplayTimeSetting()
   u8g2_uint_t x1 = 0;
   u8g2_uint_t y = 0;
 
-  isotime_r(&temp_tm, tempString);
+  isotime_r(&tmSettings, tempString);
   tempString[10] = '\0';
-  switch (ActiveHandler->id)
+  switch (handler->id)
   {
     case 1:
       x0 = 0;
@@ -976,7 +994,7 @@ void DisplayTimeSetting()
 
 
 // Turn the display off
-void clearDisplay()
+void DisplayOFF()
 {
   u8g2.clearDisplay();
 }
@@ -985,9 +1003,9 @@ void clearDisplay()
 // Display the OFF message when the system is inactive
 void DisplayOffStatus()
 {
-  if (now > LastTouched + SLEEP_AFTER)
+  if (now > lastTouched + SLEEP_AFTER)
   {
-    clearDisplay();
+    DisplayOFF();
   }
   else
   {

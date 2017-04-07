@@ -43,13 +43,13 @@
 #define TEMP_INCREMENT 0.5
 #define OVERRIDE_TIME_MAX 86400
 #define OVERRIDE_TIME_INCREMENT 300
-#define VALVE_ACTIVATION_TIME 15
+#define RELAY_QUIESCENT_TIME 15
 #define TEMP_MIN 5.0
 #define TEMP_MAX 35.0
 #define MAX_WEEKLY_STEPS 70
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
-#define SLEEP_AFTER 15
+#define SLEEP_AFTER 20
 
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
@@ -64,6 +64,8 @@
 #define WEEKDAYS "Do", "Lu", "Ma", "Me", "Gi", "Ve", "Sa"
 #define TIME_SETTINGS_MSG "Set the time:"
 #define OVERRIDE_TIME_SETTINGS_MSG "Override time:"
+#define TEMP_FAILED_MSG "ERR!"
+#define CLOCK_FAILED_MSG "ERRORE OROLOGIO!"
 
 // Global variables
 #if DEBUG > 90
@@ -82,18 +84,21 @@
 
 float temperature;
 float setpoint;
-uint16_t OverrideTime;
-bool valve_target;
-bool valve_status;
-time_t prev_valve_time;
-unsigned long prev_millis = 0;
+uint16_t overrideTime;
+bool relayTarget;
+bool relayStatus;
+time_t prevActivationTime;
+unsigned long prevMillis = 0;
 time_t now;
-time_t LastTouched;
-struct tm now_tm;
-struct tm temp_tm;
-uint16_t now_tow;
-char tempString[32];
+struct tm tmNow;
+uint16_t nowTOW;
+time_t lastTouched;
+struct tm tmSettings;
+char tempString[20];
 bool status;
+bool tempFailed = false;
+bool clockFailed = false;
+
 
 // Schedule table
 typedef struct {uint16_t tow; float temperature;} programStep;
@@ -105,8 +110,8 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 #ifdef LCD
   #include <LiquidCrystal.h>
   LiquidCrystal lcd(LCD_PINS);
-  char lcd_line1[17];
-  char lcd_line2[17];
+  char lcdLine1[17];
+  char lcdLine2[17];
 #endif
 
 
@@ -203,4 +208,4 @@ EncoderHandler_t SetMinutesHandler;
 EncoderHandler_t SetSecondsHandler;
 EncoderHandler_t SleepHandler;
 EncoderHandler_t OffHandler;
-EncoderHandler_t *ActiveHandler;
+EncoderHandler_t *handler;
