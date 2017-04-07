@@ -8,7 +8,7 @@
 //  3 + scheduler
 //  4 + more stuff
 // 99 Debug all
-#define DEBUG 3
+#define DEBUG 0
 
 #if DEBUG > 0
   #include "debug.h"
@@ -68,6 +68,8 @@
 #endif
 
 float temperature;
+float setpoint;
+uint16_t OverrideTime;
 bool valve_target;
 bool valve_status;
 time_t prev_valve_time;
@@ -76,6 +78,7 @@ time_t now;
 struct tm now_tm;
 struct tm temp_tm;
 uint16_t now_tow;
+char tempString[32];
 
 // Schedule table
 typedef struct {uint16_t tow; float temperature;} programStep;
@@ -100,7 +103,6 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
   #define BIG_FONT u8g2_font_profont22_tr
   #define SMALL_FONT u8g2_font_8x13B_tf
   U8G2_SH1106_128X64_VCOMH0_1_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
-  char tempString[17];
 #endif
 
 
@@ -157,7 +159,12 @@ typedef (ButtonFunction_t)();
 
 typedef struct
 {
-  float value;
+  union {
+    float *float_value;
+    uint8_t *uint8_value;
+    uint16_t *uint16_value;
+    int *int_value;
+  };
   float Min;
   float Max;
   float Increment;
