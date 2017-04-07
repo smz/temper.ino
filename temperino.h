@@ -159,6 +159,7 @@ typedef (ButtonFunction_t)();
 
 typedef struct
 {
+  uint8_t id;
   union {
     float *float_value;
     uint8_t *uint8_value;

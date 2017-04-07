@@ -12,12 +12,13 @@ void SwitchToSetTime()
     Serial.print(timestamp);
     Serial.println(F(" Switching to Time"));
   #endif
-  temp_tm.tm_year = now_tm.tm_year;
-  temp_tm.tm_mon  = now_tm.tm_mon;
-  temp_tm.tm_mday = now_tm.tm_mday;
-  temp_tm.tm_hour = now_tm.tm_hour;
-  temp_tm.tm_min  = now_tm.tm_min;
-  temp_tm.tm_sec  = now_tm.tm_sec;
+  localtime_r(&now, &temp_tm);
+  temp_tm.tm_sec  = 0;
+  SwitchToSetYear();
+}
+
+void SwitchToSetYear()
+{
   ActiveHandler = &SetYearHandler;
 }
 
@@ -330,6 +331,7 @@ void setup()
 
 
   // Configure handlers
+  TemperatureHandler.id =                           1;
   TemperatureHandler.float_value =                  &setpoint;
   TemperatureHandler.Min =                          TEMP_MIN;
   TemperatureHandler.Max =                          TEMP_MAX;
@@ -341,6 +343,7 @@ void setup()
   TemperatureHandler.ButtonHeldFunction =           &NullFunction;
   TemperatureHandler.ButtonReleasedFunction =       &SwitchToSetTime;
 
+  OverrideTimeHandler.id =                          2;
   OverrideTimeHandler.uint16_value =                &OverrideTime;
   OverrideTimeHandler.Min =                         0;
   OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
@@ -352,39 +355,43 @@ void setup()
   OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
   OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
 
+  SetYearHandler.id =                               3;
   SetYearHandler.uint16_value =                     &temp_tm.tm_year;
   SetYearHandler.Min =                              117;
   SetYearHandler.Max =                              199;
   SetYearHandler.Increment =                        1;
   SetYearHandler.EncoderRotatedFunction =           &UpdateUint16Value;
-  SetYearHandler.DisplayFunction =                  &DisplayDateSetting;
+  SetYearHandler.DisplayFunction =                  &DisplayTimeSetting;
   SetYearHandler.ButtonClickedFunction =            &SwitchToSetMonth;
   SetYearHandler.ButtonDoubleClickedFunction =      &NullFunction;
   SetYearHandler.ButtonHeldFunction =               &NullFunction;
-  SetYearHandler.ButtonReleasedFunction =           &NullFunction;
+  SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
 
+  SetMonthHandler.id =                              4;
   SetMonthHandler.uint8_value =                     &temp_tm.tm_mon;
   SetMonthHandler.Min =                             0;
   SetMonthHandler.Max =                             11;
   SetMonthHandler.Increment =                       1;
   SetMonthHandler.EncoderRotatedFunction =          &UpdateUint8Value;
-  SetMonthHandler.DisplayFunction =                 &DisplayDateSetting;
+  SetMonthHandler.DisplayFunction =                 &DisplayTimeSetting;
   SetMonthHandler.ButtonClickedFunction =           &SwitchToSetDay;
   SetMonthHandler.ButtonDoubleClickedFunction =     &NullFunction;
   SetMonthHandler.ButtonHeldFunction =              &NullFunction;
-  SetMonthHandler.ButtonReleasedFunction =          &NullFunction;
+  SetMonthHandler.ButtonReleasedFunction =          &SwitchToSetYear;
 
+  SetDayHandler.id =                                5;
   SetDayHandler.uint8_value =                       &temp_tm.tm_mday;
   SetDayHandler.Min =                               1;
   SetDayHandler.Max =                               31;
   SetDayHandler.Increment =                         1;
   SetDayHandler.EncoderRotatedFunction =            &UpdateUint8Value;
-  SetDayHandler.DisplayFunction =                   &DisplayDateSetting;
+  SetDayHandler.DisplayFunction =                   &DisplayTimeSetting;
   SetDayHandler.ButtonClickedFunction =             &SwitchToSetHours;
   SetDayHandler.ButtonDoubleClickedFunction =       &NullFunction;
   SetDayHandler.ButtonHeldFunction =                &NullFunction;
-  SetDayHandler.ButtonReleasedFunction =            &NullFunction;
+  SetDayHandler.ButtonReleasedFunction =            &SwitchToSetMonth;
 
+  SetHoursHandler.id =                              6;
   SetHoursHandler.uint8_value =                     &temp_tm.tm_hour;
   SetHoursHandler.Min =                             0;
   SetHoursHandler.Max =                             23;
@@ -394,19 +401,25 @@ void setup()
   SetHoursHandler.ButtonClickedFunction =           &SwitchToSetMinutes;
   SetHoursHandler.ButtonDoubleClickedFunction =     &NullFunction;
   SetHoursHandler.ButtonHeldFunction =              &NullFunction;
-  SetHoursHandler.ButtonReleasedFunction =          &NullFunction;
+  SetHoursHandler.ButtonReleasedFunction =          &SwitchToSetDay;
 
+  SetMinutesHandler.id =                            7;
   SetMinutesHandler.uint8_value =                   &temp_tm.tm_min;
   SetMinutesHandler.Min =                           0;
   SetMinutesHandler.Max =                           59;
   SetMinutesHandler.Increment =                     1;
   SetMinutesHandler.EncoderRotatedFunction =        &UpdateUint8Value;
   SetMinutesHandler.DisplayFunction =               &DisplayTimeSetting;
+  #ifdef LCD
+  SetMinutesHandler.ButtonClickedFunction =         &SetTime;
+  #else
   SetMinutesHandler.ButtonClickedFunction =         &SwitchToSetSeconds;
+  #endif
   SetMinutesHandler.ButtonDoubleClickedFunction =   &NullFunction;
   SetMinutesHandler.ButtonHeldFunction =            &NullFunction;
-  SetMinutesHandler.ButtonReleasedFunction =        &NullFunction;
+  SetMinutesHandler.ButtonReleasedFunction =        &SwitchToSetHours;
 
+  SetSecondsHandler.id  =                           8;
   SetSecondsHandler.uint8_value =                   &temp_tm.tm_sec;
   SetSecondsHandler.Min =                           0;
   SetSecondsHandler.Max =                           59;
@@ -416,7 +429,7 @@ void setup()
   SetSecondsHandler.ButtonClickedFunction =         &SetTime;
   SetSecondsHandler.ButtonDoubleClickedFunction =   &NullFunction;
   SetSecondsHandler.ButtonHeldFunction =            &NullFunction;
-  SetSecondsHandler.ButtonReleasedFunction =        &NullFunction;
+  SetSecondsHandler.ButtonReleasedFunction =        &SwitchToSetMinutes;
 
   // Initialize global variables
   setpoint = TemperatureHandler.Min;
@@ -754,19 +767,12 @@ void DisplayOverrideTime ()
 }
 
 
-void DisplayDateSetting()
-{
-  strcpy(lcd_line1, "Set the date:");
-  isotime_r(&temp_tm, lcd_line2);
-  lcd_line2[10] = '\0';
-  refresh_lcd();
-}
-
 void DisplayTimeSetting()
 {
   strcpy(lcd_line1, "Set the time:");
   isotime_r(&temp_tm, tempString);
-  strcpy(lcd_line2, &tempString[11]);
+  tempString[16] = '\0';
+  strcpy(lcd_line2, tempString);
   refresh_lcd();
 }
 #endif
@@ -827,26 +833,54 @@ void DisplayOverrideTime ()
 }
 
 
-void DisplayDateSetting()
-{
-  isotime_r(&temp_tm, tempString);
-  tempString[10] = '\0';
-  u8g2.firstPage();
-  do {
-    u8g2.setFont(SMALL_FONT);
-    u8g2.drawStr(0, 16, "Set the date:");
-    u8g2.drawStr(0, 45, tempString);
-  } while (u8g2.nextPage());
-}
-
 void DisplayTimeSetting()
 {
+  u8g2_uint_t x0 = 0;
+  u8g2_uint_t x1 = 0;
+  u8g2_uint_t y = 0;
+  
   isotime_r(&temp_tm, tempString);
+  tempString[10] = '\0';
+  switch (ActiveHandler->id)
+  {
+    case 3:
+      x0 = 0;
+      x1 = 30;
+      y = 37;
+      break;
+    case 4:
+      x0 = 40;
+      x1 = 54;
+      y = 37;
+      break;
+    case 5:
+      x0 = 64;
+      x1 = 78;
+      y = 37;
+      break;
+    case 6:
+      x0 = 0;
+      x1 = 14;
+      y = 56;
+      break;
+    case 7:
+      x0 = 24;
+      x1 = 38;
+      y = 56;
+      break;
+    case 8:
+      x0 = 48;
+      x1 = 62;
+      y = 56;
+      break;
+  }
   u8g2.firstPage();
   do {
     u8g2.setFont(SMALL_FONT);
     u8g2.drawStr(0, 16, "Set the time:");
-    u8g2.drawStr(0, 45, &tempString[11]);
+    u8g2.drawStr(0, 35, tempString);
+    u8g2.drawStr(0, 54, &tempString[11]);
+    u8g2.drawLine(x0, y, x1, y);
   } while (u8g2.nextPage());
 }
 #endif
