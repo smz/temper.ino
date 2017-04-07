@@ -270,6 +270,9 @@ void setup()
   // Setup RTC
   Rtc.Begin();
   set_zone(TIMEZONE);
+  #if DST_RULES == EU
+    set_dst(&eu_dst);
+  #endif
 
   // Here we convert the __DATE__ and __TIME__ preprocessor macros to a "time_t value"
   // to initialize the RTC with it in case it is "older" than

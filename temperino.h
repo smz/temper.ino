@@ -37,7 +37,6 @@
 
 // Operative parameters
 #define SERIAL_SPEED 57600
-#define TIMEZONE (1 * ONE_HOUR)
 #define TEMP_HYSTERESIS 0.5
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
@@ -51,6 +50,14 @@
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
 #define SLEEP_AFTER 15
+
+// Time parameters
+#define TIMEZONE (1 * ONE_HOUR)
+#define DST_RULES EU
+
+#if DST_RULES == EU
+  #include "eu_dst.h"
+#endif
 
 // i11n
 #define MONTHS "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
