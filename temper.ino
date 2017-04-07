@@ -353,7 +353,7 @@ void setup()
 
 
   // Configure handlers
-  TemperatureHandler.id =                           1;
+  TemperatureHandler.id =                           0;
   TemperatureHandler.float_value =                  &setpoint;
   TemperatureHandler.Min =                          TEMP_MIN;
   TemperatureHandler.Max =                          TEMP_MAX;
@@ -365,19 +365,7 @@ void setup()
   TemperatureHandler.ButtonHeldFunction =           &NullFunction;
   TemperatureHandler.ButtonReleasedFunction =       &ChangeStatus;
 
-  OverrideTimeHandler.id =                          2;
-  OverrideTimeHandler.uint16_value =                &OverrideTime;
-  OverrideTimeHandler.Min =                         0;
-  OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
-  OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
-  OverrideTimeHandler.EncoderRotatedFunction =      &UpdateUint16Value;
-  OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
-  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;
-  OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
-  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
-  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
-
-  SetYearHandler.id =                               3;
+  SetYearHandler.id =                               1;
   SetYearHandler.uint16_value =                     &temp_tm.tm_year;
   SetYearHandler.Min =                              117;
   SetYearHandler.Max =                              199;
@@ -389,7 +377,7 @@ void setup()
   SetYearHandler.ButtonHeldFunction =               &NullFunction;
   SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
 
-  SetMonthHandler.id =                              4;
+  SetMonthHandler.id =                              2;
   SetMonthHandler.uint8_value =                     &temp_tm.tm_mon;
   SetMonthHandler.Min =                             0;
   SetMonthHandler.Max =                             11;
@@ -401,7 +389,7 @@ void setup()
   SetMonthHandler.ButtonHeldFunction =              &NullFunction;
   SetMonthHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
-  SetDayHandler.id =                                5;
+  SetDayHandler.id =                                3;
   SetDayHandler.uint8_value =                       &temp_tm.tm_mday;
   SetDayHandler.Min =                               1;
   SetDayHandler.Max =                               31;
@@ -413,7 +401,7 @@ void setup()
   SetDayHandler.ButtonHeldFunction =                &NullFunction;
   SetDayHandler.ButtonReleasedFunction =            &SwitchToTemperature;
 
-  SetHoursHandler.id =                              6;
+  SetHoursHandler.id =                              4;
   SetHoursHandler.uint8_value =                     &temp_tm.tm_hour;
   SetHoursHandler.Min =                             0;
   SetHoursHandler.Max =                             23;
@@ -425,7 +413,7 @@ void setup()
   SetHoursHandler.ButtonHeldFunction =              &NullFunction;
   SetHoursHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
-  SetMinutesHandler.id =                            7;
+  SetMinutesHandler.id =                            5;
   SetMinutesHandler.uint8_value =                   &temp_tm.tm_min;
   SetMinutesHandler.Min =                           0;
   SetMinutesHandler.Max =                           59;
@@ -441,7 +429,7 @@ void setup()
   SetMinutesHandler.ButtonHeldFunction =            &NullFunction;
   SetMinutesHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
-  SetSecondsHandler.id  =                           8;
+  SetSecondsHandler.id  =                           6;
   SetSecondsHandler.uint8_value =                   &temp_tm.tm_sec;
   SetSecondsHandler.Min =                           0;
   SetSecondsHandler.Max =                           59;
@@ -453,7 +441,19 @@ void setup()
   SetSecondsHandler.ButtonHeldFunction =            &NullFunction;
   SetSecondsHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
-  SleepHandler.id  =                                9;
+  OverrideTimeHandler.id =                          7;
+  OverrideTimeHandler.uint16_value =                &OverrideTime;
+  OverrideTimeHandler.Min =                         0;
+  OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
+  OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
+  OverrideTimeHandler.EncoderRotatedFunction =      &UpdateUint16Value;
+  OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;
+  OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
+  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
+  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
+
+  SleepHandler.id  =                                8;
   SleepHandler.uint8_value =                        NULL;
   SleepHandler.Min =                                0;
   SleepHandler.Max =                                0;
@@ -465,7 +465,7 @@ void setup()
   SleepHandler.ButtonHeldFunction =                 &NullFunction;
   SleepHandler.ButtonReleasedFunction =             &SwitchToTemperature;
 
-  OffHandler.id  =                                  10;
+  OffHandler.id  =                                  0;
   OffHandler.uint8_value =                          NULL;
   OffHandler.Min =                                  0;
   OffHandler.Max =                                  0;
@@ -566,7 +566,7 @@ void loop()
         check_schedule();
       }
 
-      if (status & now > LastTouched + SLEEP_AFTER)
+      if (ActiveHandler->id == 0 & now > LastTouched + SLEEP_AFTER)
       {
         ActiveHandler = &SleepHandler;
       }
@@ -928,32 +928,32 @@ void DisplayTimeSetting()
   tempString[10] = '\0';
   switch (ActiveHandler->id)
   {
-    case 3:
+    case 1:
       x0 = 0;
       x1 = 30;
       y = 40;
       break;
-    case 4:
+    case 2:
       x0 = 40;
       x1 = 54;
       y = 40;
       break;
-    case 5:
+    case 3:
       x0 = 64;
       x1 = 78;
       y = 40;
       break;
-    case 6:
+    case 4:
       x0 = 0;
       x1 = 14;
       y = 63;
       break;
-    case 7:
+    case 5:
       x0 = 24;
       x1 = 38;
       y = 63;
       break;
-    case 8:
+    case 6:
       x0 = 48;
       x1 = 62;
       y = 63;
