@@ -64,8 +64,10 @@ void SwitchToSetSeconds()
 
 void SetTime()
 {
-  time_t temp = mktime(&temp_tm);
-  Rtc.SetTime(&temp);
+  now = mktime(&temp_tm);
+  Rtc.SetTime(&now);
+  LastTouched = now;
+  localtime_r(&now, &now_tm);
   SwitchToTemperature();
 }
 
