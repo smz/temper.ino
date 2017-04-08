@@ -35,19 +35,19 @@
 
 // Operative parameters
 #define SERIAL_SPEED 57600
-#define TEMP_HYSTERESIS 0.5
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
-#define TEMP_INCREMENT 0.5
-#define OVERRIDE_TIME_MAX 86400
-#define OVERRIDE_TIME_INCREMENT 300
-#define RELAY_QUIESCENT_TIME 15
 #define TEMP_MIN 5.0
 #define TEMP_MAX 35.0
+#define TEMP_INCREMENT 0.5
+#define TEMP_HYSTERESIS 0.5
 #define MAX_WEEKLY_STEPS 70
+#define OVERRIDE_TIME_MAX 86400
+#define OVERRIDE_TIME_INCREMENT 300
+#define SLEEP_AFTER 20
+#define RELAY_QUIESCENT_TIME 15
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
-#define SLEEP_AFTER 20
 
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
@@ -86,7 +86,7 @@ uint16_t overrideTime;
 bool relayTarget;
 bool relayStatus;
 time_t prevActivationTime;
-unsigned long prevMillis = 0;
+unsigned long prevMillis;
 time_t now;
 struct tm tmNow;
 uint16_t nowTOW;
@@ -94,8 +94,8 @@ time_t lastTouched;
 struct tm tmSettings;
 char tempString[20];
 bool status;
-bool tempFailed = false;
-bool clockFailed = false;
+bool tempFailed;
+bool clockFailed;
 
 
 // Schedule table

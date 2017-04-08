@@ -97,16 +97,6 @@ void SwitchToTemperature()
 }
 
 
-// void ToggleButtonAcceleration()
-// {
-//   encoder->setAccelerationEnabled(!encoder->getAccelerationEnabled());
-//   #if DEBUG > 1
-//     Serial.print(F("Acceleration "));
-//     Serial.println((encoder->getAccelerationEnabled()) ? F("ON") : F("OFF"));
-//   #endif
-// }
-
-
 void UpdateFloatValue (int16_t value)
 {
   *handler->float_value += value * handler->Increment;
@@ -242,6 +232,7 @@ void GetTime()
   if (Rtc.IsDateTimeValid())
   {
     now = Rtc.GetTime();
+    clockFailed = false;
   }
   else
   {
@@ -272,6 +263,7 @@ void GetTemperature()
     temperature = tempsensor.readTempC();
     delay(tempsensor.getSamplingTime());
     tempsensor.shutdown();
+    tempFailed = false;
   }
   else
   {
@@ -743,33 +735,31 @@ void setup()
     Rtc.SetIsRunning(true);
   }
 
-#ifdef DS3231
-  // Reset the DS3231 RTC status in case it was wrongly configured
-  Rtc.Enable32kHzPin(false);
-  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
-#endif
-
-#ifdef MCP9808_TEMP
-  // Setup MCP9808
-  if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
-  {
-    Serial.println(F("Couldn't find MCP9808!"));
-    while (true);
-  }
-  tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
-  #if DEBUG > 0
-    uint8_t temperatureResolution = tempsensor.getResolution();
-    Serial.print(F("MCP9808"));
-    DUMP(temperatureResolution);
+  #ifdef DS3231
+    // Reset the DS3231 RTC status in case it was wrongly configured
+    Rtc.Enable32kHzPin(false);
+    Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   #endif
-#endif
 
+  #ifdef MCP9808_TEMP
+    // Setup MCP9808
+    if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
+    {
+      Serial.println(F("Couldn't find MCP9808!"));
+      while (true);
+    }
+    tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
+    #if DEBUG > 0
+      uint8_t temperatureResolution = tempsensor.getResolution();
+      Serial.print(F("MCP9808"));
+      DUMP(temperatureResolution);
+    #endif
+  #endif
 
-  // Setup ENCODER
+  // Setup rotary encoder
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
-
 
   // Configure handlers
   TemperatureHandler.id =                           0;
@@ -902,6 +892,7 @@ void setup()
   relayTarget = false;
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
+  prevMillis = millis() - POLLING_TIME;
 
   // Initialize the weekly schedule
   GetTime();
