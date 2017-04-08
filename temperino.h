@@ -18,8 +18,6 @@
 #undef  DS3231
 #undef  DS3231_TEMP
 #define MCP9808_TEMP
-#undef  RESET_RTC_TIME
-#undef  RESET_RTC_OLDER
 #undef  SOFTWARE_WIRE
 #undef  LCD
 #define SH1106
@@ -32,7 +30,7 @@
 //      ENCODER_PINS CLK, DT, SW
 #define SOFTWARE_WIRE_SDA SDA
 #define SOFTWARE_WIRE_SCL SCL
-#define VALVE_PIN 13
+#define RELAY_PIN 13
 
 
 // Operative parameters
@@ -147,9 +145,6 @@ uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
   #include <RtcDS1307.h>
   RtcDS1307<myWire> Rtc(I2C);
 #endif
-
-// This is for the str20ToTime() function used to bootstrap the RTC in case it has an invalid time
-#include "RTCtimeUtils.h"
 
 
 // Temperature sensor

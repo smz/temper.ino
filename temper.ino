@@ -10,7 +10,7 @@ void ChangeStatus()
   if (status)
   {
     status = false;
-    digitalWrite(VALVE_PIN, LOW);
+    digitalWrite(RELAY_PIN, LOW);
     handler = &OffHandler;
   }
   else
@@ -236,353 +236,32 @@ void EncoderDispatcher()
 }
 
 
-// SETUP
-void setup()
+// Get the time
+void GetTime()
 {
-
-  // Setup Serial
-  #if DEBUG > 0
-    Serial.begin(SERIAL_SPEED);
-    Serial.println(F("Setup started."));
-  #endif
-
-  // Setup LCD
-  #ifdef LCD
-    lcd.begin(16, 2);
-  #endif
-
-  // Setup SH1106 OLED
-  #ifdef SH1106
-    u8g2.begin();
-  #endif
-
-  // Print debug info
-  #if DEBUG > 0
-    Serial.print(F("Using "));
-    #ifdef DS3231
-      Serial.print (F("DS3231"));
-    #else
-      Serial.print (F("DS1307"));
-    #endif
-    Serial.println(F(" RTC"));
-  #endif
-
-  // Setup RTC
-  Rtc.Begin();
-  set_zone(TIMEZONE);
-  #if DST_RULES == EU
-    set_dst(&eu_dst);
-  #endif
-
-  // Here we convert the __DATE__ and __TIME__ preprocessor macros to a "time_t value"
-  // to initialize the RTC with it in case it is "older" than
-  // the compile time (i.e: it was wrongly set. But your PC clock might be wrong too!)
-  // or in case it is invalid.
-  // This is *very* crude, it would be MUCH better to take the time from a reliable
-  // source (GPS or NTP), or even set it "by hand", but -hey!-, this is just an example!!
-  // N.B.: We always set the RTC to the compile time when we are debugging.
-  #define COMPILE_DATE_TIME (__DATE__ " " __TIME__)
-  time_t compiled_time_t = str20ToTime(COMPILE_DATE_TIME);
-
-
-  // Now we check the health of our RTC and in case we try to "fix it"
-  // Common causes for it being invalid are:
-  //    1) first time you ran and the device wasn't running yet
-  //    2) the battery on the device is low or even missing
-
-
-  // Check if the time is valid.
-  #ifndef RESET_RTC_TIME
-  if (!Rtc.IsDateTimeValid())
-  #endif
+  if (Rtc.IsDateTimeValid())
   {
-    #ifndef RESET_RTC_TIME
-    Serial.println(F("WARNING: RTC invalid time, setting RTC with compile time."));
-    #else
-    Serial.println(F("Forcing setting RTC with compile time."));
-    #endif
-    Rtc.SetTime(&compiled_time_t);
-  }
-
-  // Check if the RTC clock is running (Yes, it can be stopped, if you wish!)
-  if (!Rtc.GetIsRunning())
-  {
-    Serial.println(F("WARNING: RTC wasn't running, starting it now."));
-    Rtc.SetIsRunning(true);
-  }
-
-  // Get the time from the RTC
-  now = Rtc.GetTime();
-
-#ifdef RESET_RTC_OLDER
-  // Reset the RTC if "now" is older than "Compile time"
-  if (now < compiled_time_t)
-  {
-    Serial.println(F("WARNING: RTC is older than compile time, setting RTC with compile time!"));
-    Rtc.SetTime(&compiled_time_t);
-  }
-#endif
-
-#ifdef DS3231
-  // Reset the DS3231 RTC status in case it was wrongly configured
-  Rtc.Enable32kHzPin(false);
-  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
-#endif
-
-
-#ifdef MCP9808_TEMP
-  // Setup MCP9808
-  if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
-  {
-    Serial.println(F("Couldn't find MCP9808!"));
-    while (true);
-  }
-  tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
-  #if DEBUG > 0
-    uint8_t temperatureResolution = tempsensor.getResolution();
-    Serial.print(F("MCP9808"));
-    DUMP(temperatureResolution);
-  #endif
-#endif
-
-
-  // Setup ENCODER
-  encoder = new ClickEncoder(ENCODER_PINS);
-  Timer1.initialize(ENCODER_TIMER);
-  Timer1.attachInterrupt(timerIsr);
-
-
-  // Configure handlers
-  TemperatureHandler.id =                           0;
-  TemperatureHandler.float_value =                  &setpoint;
-  TemperatureHandler.Min =                          TEMP_MIN;
-  TemperatureHandler.Max =                          TEMP_MAX;
-  TemperatureHandler.Increment =                    TEMP_INCREMENT;
-  TemperatureHandler.EncoderRotatedFunction =       &UpdateFloatValue;
-  TemperatureHandler.DisplayFunction =              &DisplayTemperature;
-  TemperatureHandler.ButtonClickedFunction =        &SwitchToOverrideTime;
-  TemperatureHandler.ButtonDoubleClickedFunction =  &SwitchToSetTime;
-  TemperatureHandler.ButtonHeldFunction =           &NullFunction;
-  TemperatureHandler.ButtonReleasedFunction =       &ChangeStatus;
-
-  SetYearHandler.id =                               1;
-  SetYearHandler.uint16_value =                     &tmSettings.tm_year;
-  SetYearHandler.Min =                              117;
-  SetYearHandler.Max =                              199;
-  SetYearHandler.Increment =                        1;
-  SetYearHandler.EncoderRotatedFunction =           &UpdateUint16Value;
-  SetYearHandler.DisplayFunction =                  &DisplayTimeSetting;
-  SetYearHandler.ButtonClickedFunction =            &SwitchToSetMonth;
-  SetYearHandler.ButtonDoubleClickedFunction =      &SwitchToTemperature;
-  SetYearHandler.ButtonHeldFunction =               &NullFunction;
-  SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
-
-  SetMonthHandler.id =                              2;
-  SetMonthHandler.uint8_value =                     &tmSettings.tm_mon;
-  SetMonthHandler.Min =                             0;
-  SetMonthHandler.Max =                             11;
-  SetMonthHandler.Increment =                       1;
-  SetMonthHandler.EncoderRotatedFunction =          &UpdateUint8Value;
-  SetMonthHandler.DisplayFunction =                 &DisplayTimeSetting;
-  SetMonthHandler.ButtonClickedFunction =           &SwitchToSetDay;
-  SetMonthHandler.ButtonDoubleClickedFunction =     &SwitchToSetYear;
-  SetMonthHandler.ButtonHeldFunction =              &NullFunction;
-  SetMonthHandler.ButtonReleasedFunction =          &SwitchToTemperature;
-
-  SetDayHandler.id =                                3;
-  SetDayHandler.uint8_value =                       &tmSettings.tm_mday;
-  SetDayHandler.Min =                               1;
-  SetDayHandler.Max =                               31;
-  SetDayHandler.Increment =                         1;
-  SetDayHandler.EncoderRotatedFunction =            &UpdateUint8Value;
-  SetDayHandler.DisplayFunction =                   &DisplayTimeSetting;
-  SetDayHandler.ButtonClickedFunction =             &SwitchToSetHours;
-  SetDayHandler.ButtonDoubleClickedFunction =       &SwitchToSetMonth;
-  SetDayHandler.ButtonHeldFunction =                &NullFunction;
-  SetDayHandler.ButtonReleasedFunction =            &SwitchToTemperature;
-
-  SetHoursHandler.id =                              4;
-  SetHoursHandler.uint8_value =                     &tmSettings.tm_hour;
-  SetHoursHandler.Min =                             0;
-  SetHoursHandler.Max =                             23;
-  SetHoursHandler.Increment =                       1;
-  SetHoursHandler.EncoderRotatedFunction =          &UpdateUint8Value;
-  SetHoursHandler.DisplayFunction =                 &DisplayTimeSetting;
-  SetHoursHandler.ButtonClickedFunction =           &SwitchToSetMinutes;
-  SetHoursHandler.ButtonDoubleClickedFunction =     &SwitchToSetDay;
-  SetHoursHandler.ButtonHeldFunction =              &NullFunction;
-  SetHoursHandler.ButtonReleasedFunction =          &SwitchToTemperature;
-
-  SetMinutesHandler.id =                            5;
-  SetMinutesHandler.uint8_value =                   &tmSettings.tm_min;
-  SetMinutesHandler.Min =                           0;
-  SetMinutesHandler.Max =                           59;
-  SetMinutesHandler.Increment =                     1;
-  SetMinutesHandler.EncoderRotatedFunction =        &UpdateUint8Value;
-  SetMinutesHandler.DisplayFunction =               &DisplayTimeSetting;
-  #ifdef LCD
-  SetMinutesHandler.ButtonClickedFunction =         &SetTime;
-  #else
-  SetMinutesHandler.ButtonClickedFunction =         &SwitchToSetSeconds;
-  #endif
-  SetMinutesHandler.ButtonDoubleClickedFunction =   &SwitchToSetHours;
-  SetMinutesHandler.ButtonHeldFunction =            &NullFunction;
-  SetMinutesHandler.ButtonReleasedFunction =        &SwitchToTemperature;
-
-  SetSecondsHandler.id  =                           6;
-  SetSecondsHandler.uint8_value =                   &tmSettings.tm_sec;
-  SetSecondsHandler.Min =                           0;
-  SetSecondsHandler.Max =                           59;
-  SetSecondsHandler.Increment =                     1;
-  SetSecondsHandler.EncoderRotatedFunction =        &UpdateUint8Value;
-  SetSecondsHandler.DisplayFunction =               &DisplayTimeSetting;
-  SetSecondsHandler.ButtonClickedFunction =         &SetTime;
-  SetSecondsHandler.ButtonDoubleClickedFunction =   &SwitchToSetMinutes;
-  SetSecondsHandler.ButtonHeldFunction =            &NullFunction;
-  SetSecondsHandler.ButtonReleasedFunction =        &SwitchToTemperature;
-
-  OverrideTimeHandler.id =                          7;
-  OverrideTimeHandler.uint16_value =                &overrideTime;
-  OverrideTimeHandler.Min =                         0;
-  OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
-  OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
-  OverrideTimeHandler.EncoderRotatedFunction =      &UpdateUint16Value;
-  OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
-  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;
-  OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
-  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
-  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
-
-  SleepHandler.id  =                                8;
-  SleepHandler.uint8_value =                        NULL;
-  SleepHandler.Min =                                0;
-  SleepHandler.Max =                                0;
-  SleepHandler.Increment =                          0;
-  SleepHandler.EncoderRotatedFunction =             &SwitchToTemperature;
-  SleepHandler.DisplayFunction =                    &DisplayOFF;
-  SleepHandler.ButtonClickedFunction =              &SwitchToTemperature;
-  SleepHandler.ButtonDoubleClickedFunction =        &SwitchToTemperature;
-  SleepHandler.ButtonHeldFunction =                 &NullFunction;
-  SleepHandler.ButtonReleasedFunction =             &SwitchToTemperature;
-
-  OffHandler.id  =                                  0;
-  OffHandler.uint8_value =                          NULL;
-  OffHandler.Min =                                  0;
-  OffHandler.Max =                                  0;
-  OffHandler.Increment =                            0;
-  OffHandler.EncoderRotatedFunction =               &NullFunction;
-  OffHandler.DisplayFunction =                      &DisplayOffStatus;
-  OffHandler.ButtonClickedFunction =                &NullFunction;
-  OffHandler.ButtonDoubleClickedFunction =          &NullFunction;
-  OffHandler.ButtonHeldFunction =                   &NullFunction;
-  OffHandler.ButtonReleasedFunction =               &ChangeStatus;
-
-  // Initialize global variables
-  setpoint = TemperatureHandler.Min;
-  temperature = TemperatureHandler.Min;
-  relayTarget = false;
-  pinMode(VALVE_PIN, OUTPUT);
-  digitalWrite(VALVE_PIN, LOW);
-  prevActivationTime = now;
-  lastTouched = now;
-  localtime_r(&now, &tmNow);
-
-  // Initialize the weekly schedule
-  nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
-  GetSchedule();
-
-  #if DEBUG > 0
-    strcpy(timestamp, isotime(&tmNow));
-    Serial.print(timestamp);
-    Serial.println(F(" Starting"));
-  #endif
-
-  // Get previous status from EEPROM
-  EEPROM.get(0, status);
-  if (status)
-  {
-     handler = &TemperatureHandler;
+    now = Rtc.GetTime();
   }
   else
   {
-     handler = &OffHandler;
-  }
-
-  // End of Setup
-}
-
-
-
-// Main loop
-void loop()
-{
-
-  relayStatus = (bool) digitalRead(VALVE_PIN);
-
-  #if DEBUG > 90
-    loops++;
-  #endif
-
-  EncoderDispatcher();
-
-  if (millis() - prevMillis >= POLLING_TIME)
-  {
-    prevMillis += POLLING_TIME;
-
-    #if DEBUG > 90
-      PrintLoops();
+    now = 0;
+    clockFailed = true;
+    setpoint = TemperatureHandler.Min;
+    #if DEBUG > 0
+      Serial.println(F("RTC clock failed!"));
     #endif
-
-    // Get the time and set timestamp
-    if (Rtc.IsDateTimeValid())
-    {
-      now = Rtc.GetTime();
-      localtime_r(&now, &tmNow);
-      nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
-      #if DEBUG > 0
-        strcpy(timestamp, isotime(&tmNow));
-      #endif
-    }
-    else
-    {
-      setpoint = TemperatureHandler.Min;
-      #if DEBUG > 0
-        Serial.println(F("RTC clock failed!"));
-      #endif
-    }
-
-    if (status)
-    {
-
-      GetTemperature();
-
-      if (overrideTime > 0 && handler != &OverrideTimeHandler)
-      {
-        overrideTime -= POLLING_TIME / 1000;
-      }
-      else
-      {
-        CheckSchedule();
-      }
-
-      SetRelay();
-
-      if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
-      {
-        handler = &SleepHandler;
-      }
-    }
   }
 
-  // Display status on LCD
-  handler->DisplayFunction();
-
-  // End of Loop
+  localtime_r(&now, &tmNow);
+  #if DEBUG > 0
+    strcpy(timestamp, isotime(&tmNow));
+  #endif
+  nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
 }
 
 
-
-// GetTemperature function
+// Get the temperature
 void GetTemperature()
 {
 #ifdef MCP9808_TEMP
@@ -613,8 +292,7 @@ void GetTemperature()
 }
 
 
-
-// See if valve status should be modified
+// See if relay status should be modified
 void SetRelay()
 {
   if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
@@ -632,7 +310,7 @@ void SetRelay()
     {
       if (now - prevActivationTime > RELAY_QUIESCENT_TIME)
       {
-        digitalWrite(VALVE_PIN, relayTarget ? HIGH : LOW);
+        digitalWrite(RELAY_PIN, relayTarget ? HIGH : LOW);
         prevActivationTime = now;
         relayStatus = relayTarget;
         #if DEBUG > 0
@@ -654,7 +332,6 @@ void SetRelay()
     }
   }
 }
-
 
 
 void CheckSchedule()
@@ -1017,3 +694,288 @@ void DisplayOffStatus()
   }
 }
 #endif
+
+
+// SETUP
+void setup()
+{
+
+  // Setup Serial
+  #if DEBUG > 0
+    Serial.begin(SERIAL_SPEED);
+    Serial.println(F("Setup started."));
+  #endif
+
+  // Setup LCD
+  #ifdef LCD
+    lcd.begin(16, 2);
+  #endif
+
+  // Setup SH1106 OLED
+  #ifdef SH1106
+    u8g2.begin();
+  #endif
+
+  // Print debug info
+  #if DEBUG > 0
+    Serial.print(F("Using "));
+    #ifdef DS3231
+      Serial.print (F("DS3231"));
+    #else
+      Serial.print (F("DS1307"));
+    #endif
+    Serial.println(F(" RTC"));
+  #endif
+
+  // Setup RTC
+  Rtc.Begin();
+  set_zone(TIMEZONE);
+  #if DST_RULES == EU
+    set_dst(&eu_dst);
+  #endif
+
+  // Check if the RTC clock is running (Yes, it can be stopped!)
+  if (!Rtc.GetIsRunning())
+  {
+    #if DEBUG > 0
+      Serial.println(F("WARNING: RTC wasn't running, starting it now."));
+    #endif
+    Rtc.SetIsRunning(true);
+  }
+
+#ifdef DS3231
+  // Reset the DS3231 RTC status in case it was wrongly configured
+  Rtc.Enable32kHzPin(false);
+  Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
+#endif
+
+#ifdef MCP9808_TEMP
+  // Setup MCP9808
+  if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
+  {
+    Serial.println(F("Couldn't find MCP9808!"));
+    while (true);
+  }
+  tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
+  #if DEBUG > 0
+    uint8_t temperatureResolution = tempsensor.getResolution();
+    Serial.print(F("MCP9808"));
+    DUMP(temperatureResolution);
+  #endif
+#endif
+
+
+  // Setup ENCODER
+  encoder = new ClickEncoder(ENCODER_PINS);
+  Timer1.initialize(ENCODER_TIMER);
+  Timer1.attachInterrupt(timerIsr);
+
+
+  // Configure handlers
+  TemperatureHandler.id =                           0;
+  TemperatureHandler.float_value =                  &setpoint;
+  TemperatureHandler.Min =                          TEMP_MIN;
+  TemperatureHandler.Max =                          TEMP_MAX;
+  TemperatureHandler.Increment =                    TEMP_INCREMENT;
+  TemperatureHandler.EncoderRotatedFunction =       &UpdateFloatValue;
+  TemperatureHandler.DisplayFunction =              &DisplayTemperature;
+  TemperatureHandler.ButtonClickedFunction =        &SwitchToOverrideTime;
+  TemperatureHandler.ButtonDoubleClickedFunction =  &SwitchToSetTime;
+  TemperatureHandler.ButtonHeldFunction =           &NullFunction;
+  TemperatureHandler.ButtonReleasedFunction =       &ChangeStatus;
+
+  SetYearHandler.id =                               1;
+  SetYearHandler.uint16_value =                     &tmSettings.tm_year;
+  SetYearHandler.Min =                              117;
+  SetYearHandler.Max =                              199;
+  SetYearHandler.Increment =                        1;
+  SetYearHandler.EncoderRotatedFunction =           &UpdateUint16Value;
+  SetYearHandler.DisplayFunction =                  &DisplayTimeSetting;
+  SetYearHandler.ButtonClickedFunction =            &SwitchToSetMonth;
+  SetYearHandler.ButtonDoubleClickedFunction =      &SwitchToTemperature;
+  SetYearHandler.ButtonHeldFunction =               &NullFunction;
+  SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
+
+  SetMonthHandler.id =                              2;
+  SetMonthHandler.uint8_value =                     &tmSettings.tm_mon;
+  SetMonthHandler.Min =                             0;
+  SetMonthHandler.Max =                             11;
+  SetMonthHandler.Increment =                       1;
+  SetMonthHandler.EncoderRotatedFunction =          &UpdateUint8Value;
+  SetMonthHandler.DisplayFunction =                 &DisplayTimeSetting;
+  SetMonthHandler.ButtonClickedFunction =           &SwitchToSetDay;
+  SetMonthHandler.ButtonDoubleClickedFunction =     &SwitchToSetYear;
+  SetMonthHandler.ButtonHeldFunction =              &NullFunction;
+  SetMonthHandler.ButtonReleasedFunction =          &SwitchToTemperature;
+
+  SetDayHandler.id =                                3;
+  SetDayHandler.uint8_value =                       &tmSettings.tm_mday;
+  SetDayHandler.Min =                               1;
+  SetDayHandler.Max =                               31;
+  SetDayHandler.Increment =                         1;
+  SetDayHandler.EncoderRotatedFunction =            &UpdateUint8Value;
+  SetDayHandler.DisplayFunction =                   &DisplayTimeSetting;
+  SetDayHandler.ButtonClickedFunction =             &SwitchToSetHours;
+  SetDayHandler.ButtonDoubleClickedFunction =       &SwitchToSetMonth;
+  SetDayHandler.ButtonHeldFunction =                &NullFunction;
+  SetDayHandler.ButtonReleasedFunction =            &SwitchToTemperature;
+
+  SetHoursHandler.id =                              4;
+  SetHoursHandler.uint8_value =                     &tmSettings.tm_hour;
+  SetHoursHandler.Min =                             0;
+  SetHoursHandler.Max =                             23;
+  SetHoursHandler.Increment =                       1;
+  SetHoursHandler.EncoderRotatedFunction =          &UpdateUint8Value;
+  SetHoursHandler.DisplayFunction =                 &DisplayTimeSetting;
+  SetHoursHandler.ButtonClickedFunction =           &SwitchToSetMinutes;
+  SetHoursHandler.ButtonDoubleClickedFunction =     &SwitchToSetDay;
+  SetHoursHandler.ButtonHeldFunction =              &NullFunction;
+  SetHoursHandler.ButtonReleasedFunction =          &SwitchToTemperature;
+
+  SetMinutesHandler.id =                            5;
+  SetMinutesHandler.uint8_value =                   &tmSettings.tm_min;
+  SetMinutesHandler.Min =                           0;
+  SetMinutesHandler.Max =                           59;
+  SetMinutesHandler.Increment =                     1;
+  SetMinutesHandler.EncoderRotatedFunction =        &UpdateUint8Value;
+  SetMinutesHandler.DisplayFunction =               &DisplayTimeSetting;
+  #ifdef LCD
+  SetMinutesHandler.ButtonClickedFunction =         &SetTime;
+  #else
+  SetMinutesHandler.ButtonClickedFunction =         &SwitchToSetSeconds;
+  #endif
+  SetMinutesHandler.ButtonDoubleClickedFunction =   &SwitchToSetHours;
+  SetMinutesHandler.ButtonHeldFunction =            &NullFunction;
+  SetMinutesHandler.ButtonReleasedFunction =        &SwitchToTemperature;
+
+  SetSecondsHandler.id  =                           6;
+  SetSecondsHandler.uint8_value =                   &tmSettings.tm_sec;
+  SetSecondsHandler.Min =                           0;
+  SetSecondsHandler.Max =                           59;
+  SetSecondsHandler.Increment =                     1;
+  SetSecondsHandler.EncoderRotatedFunction =        &UpdateUint8Value;
+  SetSecondsHandler.DisplayFunction =               &DisplayTimeSetting;
+  SetSecondsHandler.ButtonClickedFunction =         &SetTime;
+  SetSecondsHandler.ButtonDoubleClickedFunction =   &SwitchToSetMinutes;
+  SetSecondsHandler.ButtonHeldFunction =            &NullFunction;
+  SetSecondsHandler.ButtonReleasedFunction =        &SwitchToTemperature;
+
+  OverrideTimeHandler.id =                          7;
+  OverrideTimeHandler.uint16_value =                &overrideTime;
+  OverrideTimeHandler.Min =                         0;
+  OverrideTimeHandler.Max =                         OVERRIDE_TIME_MAX;
+  OverrideTimeHandler.Increment =                   OVERRIDE_TIME_INCREMENT;
+  OverrideTimeHandler.EncoderRotatedFunction =      &UpdateUint16Value;
+  OverrideTimeHandler.DisplayFunction =             &DisplayOverrideTime;
+  OverrideTimeHandler.ButtonClickedFunction =       &SwitchToTemperature;
+  OverrideTimeHandler.ButtonDoubleClickedFunction = &NullFunction;
+  OverrideTimeHandler.ButtonHeldFunction =          &NullFunction;
+  OverrideTimeHandler.ButtonReleasedFunction =      &NullFunction;
+
+  SleepHandler.id  =                                8;
+  SleepHandler.uint8_value =                        NULL;
+  SleepHandler.Min =                                0;
+  SleepHandler.Max =                                0;
+  SleepHandler.Increment =                          0;
+  SleepHandler.EncoderRotatedFunction =             &SwitchToTemperature;
+  SleepHandler.DisplayFunction =                    &DisplayOFF;
+  SleepHandler.ButtonClickedFunction =              &SwitchToTemperature;
+  SleepHandler.ButtonDoubleClickedFunction =        &SwitchToTemperature;
+  SleepHandler.ButtonHeldFunction =                 &NullFunction;
+  SleepHandler.ButtonReleasedFunction =             &SwitchToTemperature;
+
+  OffHandler.id  =                                  0;
+  OffHandler.uint8_value =                          NULL;
+  OffHandler.Min =                                  0;
+  OffHandler.Max =                                  0;
+  OffHandler.Increment =                            0;
+  OffHandler.EncoderRotatedFunction =               &NullFunction;
+  OffHandler.DisplayFunction =                      &DisplayOffStatus;
+  OffHandler.ButtonClickedFunction =                &NullFunction;
+  OffHandler.ButtonDoubleClickedFunction =          &NullFunction;
+  OffHandler.ButtonHeldFunction =                   &NullFunction;
+  OffHandler.ButtonReleasedFunction =               &ChangeStatus;
+
+  // Initialize global variables
+  setpoint = TemperatureHandler.Min;
+  temperature = TemperatureHandler.Min;
+  relayTarget = false;
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+
+  // Initialize the weekly schedule
+  GetTime();
+  GetSchedule();
+  prevActivationTime = now;
+  lastTouched = now;
+
+  // Get previous status from EEPROM
+  EEPROM.get(0, status);
+  if (status)
+  {
+     handler = &TemperatureHandler;
+  }
+  else
+  {
+     handler = &OffHandler;
+  }
+
+  #if DEBUG > 0
+    strcpy(timestamp, isotime(&tmNow));
+    Serial.print(timestamp);
+    Serial.println(F(" Starting"));
+  #endif
+
+  // End of Setup
+}
+
+
+// Main loop
+void loop()
+{
+
+  relayStatus = (bool) digitalRead(RELAY_PIN);
+
+  #if DEBUG > 90
+    loops++;
+  #endif
+
+  EncoderDispatcher();
+
+  if (millis() - prevMillis >= POLLING_TIME)
+  {
+    prevMillis += POLLING_TIME;
+
+    #if DEBUG > 90
+      PrintLoops();
+    #endif
+
+    GetTime();
+
+    if (status)
+    {
+      GetTemperature();
+
+      if (overrideTime > 0 && handler != &OverrideTimeHandler)
+      {
+        overrideTime -= POLLING_TIME / 1000;
+      }
+      else if (!clockFailed)
+      {
+        CheckSchedule();
+      }
+
+      SetRelay();
+
+      if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
+      {
+        handler = &SleepHandler;
+      }
+    }
+  }
+
+  // Display status on LCD
+  handler->DisplayFunction();
+
+  // End of Loop
+}
