@@ -457,12 +457,15 @@ void RefreshLCD()
 // Main display page
 void DisplayTemperature()
 {
-  char str_temp[16];
-  char str_ovt[6];
-  dtostrf(temperature, 5, 1, str_temp);
-  sprintf(lcdLine1, "A%5s  %2i:%2.2i:%2.2i", str_temp, tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
-  dtostrf(setpoint, 5, 1, str_temp);
-  sprintf(lcdLine2, "S%5s %6.6s %2s", str_temp, GetFormattedOverrideTime(), (relayStatus == relayTarget ? (relayTarget ? "ON" : "OF") : (relayTarget ? "on" : "of")));
+  dtostrf(temperature, 5, 1, tempString);
+  sprintf(lcdLine1, "A%5s  %2.2i:%2.2i:%2.2i",
+    tempString,
+    tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
+  dtostrf(setpoint, 5, 1, tempString);
+  sprintf(lcdLine2, "S%5s %5s %3s",
+    tempString,
+    (overrideTime > 0 ? GetFormattedOverrideTime() : ""),
+    (relayStatus == relayTarget ? (relayTarget ? " ON" : "OFF") : (relayTarget ? " on" : "off")));
   RefreshLCD();
 }
 
@@ -546,14 +549,7 @@ void DisplayTemperature()
 
     // Status
     u8g2.setFont(SMALL_FONT);
-    if (relayTarget)
-    {
-      u8g2.drawStr(115, 9, (relayStatus == relayTarget ? "ON" : "on"));
-    }
-    else
-    {
-      u8g2.drawStr(108, 9, (relayStatus == relayTarget ? "OFF" : "off"));
-    }
+    u8g2.drawStr(108, 9, (relayStatus == relayTarget ? (relayTarget ? " ON" : "OFF") : (relayTarget ? " on" : "off")));
 
     // Setpoint
     u8g2.setFont(BIG_FONT);
@@ -745,8 +741,10 @@ void setup()
     // Setup MCP9808
     if (!tempsensor.begin(MCP9808_I2C_ADDRESS))
     {
-      Serial.println(F("Couldn't find MCP9808!"));
-      while (true);
+      tempFailed = true;
+      #if DEBUG > 0
+        Serial.println(F("Couldn't find MCP9808!"));
+      #endif
     }
     tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
     #if DEBUG > 0
