@@ -2,12 +2,12 @@
 #include <EEPROM.h>
 
 // DEBUG
-//  0 No debug
+//  0 Nothing
 //  1 actions
 //  2 + rotary encoder
-//  3 + scheduler
-//  4 + more stuff
-// 99 Debug all
+//  3 + schedule
+//  4 + EEPROM
+//  9 Everything
 #define DEBUG 0
 
 #if DEBUG > 0
@@ -66,7 +66,7 @@
 #define CLOCK_FAILED_MSG "ERRORE OROLOGIO!"
 
 // Global variables
-#if DEBUG > 90
+#if DEBUG > 8
   unsigned long loops = 0;
   #define PrintLoops() {           \
       Serial.print(timestamp);     \

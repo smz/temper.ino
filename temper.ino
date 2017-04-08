@@ -369,7 +369,7 @@ void PutStepToEEPROM(int stepIdx, programStep step)
   programStep tempStep;
   stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
 
-  #if DEBUG > 2
+  #if DEBUG > 3
     Serial.print(F("Storing "));
     Serial.print(step.tow);
     Serial.print(F("/"));
@@ -383,11 +383,11 @@ void PutStepToEEPROM(int stepIdx, programStep step)
   if (step.tow != tempStep.tow || step.temperature != tempStep.temperature)
   {
     EEPROM.put(stepIdx, step);
-    #if DEBUG > 2
+    #if DEBUG > 3
       Serial.println(F(" Done!"));
     #endif
   }
-  #if DEBUG > 2
+  #if DEBUG > 3
   else
   {
       Serial.println(F(" Same, skipping!"));
@@ -936,7 +936,7 @@ void loop()
 
   relayStatus = (bool) digitalRead(RELAY_PIN);
 
-  #if DEBUG > 90
+  #if DEBUG > 8
     loops++;
   #endif
 
@@ -946,7 +946,7 @@ void loop()
   {
     prevMillis += POLLING_TIME;
 
-    #if DEBUG > 90
+    #if DEBUG > 8
       PrintLoops();
     #endif
 
