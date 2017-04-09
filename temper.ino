@@ -289,14 +289,7 @@ void SetRelay()
 {
   if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
   {
-    if (setpoint > temperature)
-    {
-      relayTarget = true;
-    }
-    else
-    {
-      relayTarget = false;
-    }
+    relayTarget = setpoint > temperature;
 
     if (relayStatus != relayTarget)
     {
@@ -389,7 +382,7 @@ void PutStepToEEPROM(int stepIdx, programStep step)
 }
 
 
-void GetSchedule()
+void SetSchedule()
 {
   // Initialize the weekly schedule
   programStep tempStep;
@@ -894,7 +887,7 @@ void setup()
 
   // Initialize the weekly schedule
   GetTime();
-  GetSchedule();
+  SetSchedule();
   prevActivationTime = now;
   lastTouched = now;
 
