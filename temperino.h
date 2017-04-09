@@ -44,10 +44,11 @@
 #define MAX_WEEKLY_STEPS 70
 #define OVERRIDE_TIME_MAX 86400
 #define OVERRIDE_TIME_INCREMENT 300
-#define SLEEP_AFTER 20
+#define SLEEP_AFTER 60
 #define RELAY_QUIESCENT_TIME 15
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
+#define DEFAULT_OVERRIDE_TIME 3600
 
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
@@ -82,20 +83,22 @@
 
 float temperature;
 float setpoint;
-uint16_t overrideTime;
 bool relayTarget;
 bool relayStatus;
 time_t prevActivationTime;
 unsigned long prevMillis;
 time_t now;
 struct tm tmNow;
+struct tm tmSettings;
 uint16_t nowTOW;
 time_t lastTouched;
-struct tm tmSettings;
+time_t overrideTime;
+struct tm tmOverride;
 char tempString[20];
 bool status;
 bool tempFailed;
 bool clockFailed;
+bool settingOverride;
 
 
 // Schedule table
@@ -182,6 +185,7 @@ typedef struct
     uint16_t *uint16_value;
     int *int_value;
   };
+  tm *tm_base;
   float Min;
   float Max;
   float Increment;
@@ -194,7 +198,6 @@ typedef struct
 } EncoderHandler_t;
 
 EncoderHandler_t TemperatureHandler;
-EncoderHandler_t OverrideTimeHandler;
 EncoderHandler_t SetYearHandler;
 EncoderHandler_t SetMonthHandler;
 EncoderHandler_t SetDayHandler;
