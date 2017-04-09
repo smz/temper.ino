@@ -103,7 +103,6 @@ bool settingOverride;
 
 // Schedule table
 typedef struct {uint16_t tow; float temperature;} programStep;
-uint16_t currentStep = MAX_WEEKLY_STEPS + 1;
 #define programStepsBaseAddress (0 + sizeof(bool))  // We have "status" before
 
 
@@ -178,7 +177,6 @@ typedef (ButtonFunction_t)();
 
 typedef struct
 {
-  uint8_t id;
   union {
     float *float_value;
     uint8_t *uint8_value;

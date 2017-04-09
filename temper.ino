@@ -21,6 +21,31 @@ void ChangeStatus()
   EEPROM.put(0, status);
 }
 
+void WakingUp()
+{
+  #if DEBUG > 1
+    Serial.print(timestamp);
+    Serial.println(F(" Waking Up."));
+  #endif
+  SleepHandler.DisplayFunction = &DisplayTemperature;
+}
+
+void CheckIdle()
+{
+  if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
+  {
+    SleepHandler.DisplayFunction = &DisplayOFF;
+    handler = &SleepHandler;
+   }
+
+  if (handler == &SleepHandler &
+      SleepHandler.DisplayFunction == DisplayTemperature &
+      now > lastTouched + 1)
+  {
+    SwitchToTemperature();
+  }
+}
+
 void SwitchToSetTime()
 {
   #if DEBUG > 1
@@ -362,6 +387,8 @@ void CheckSchedule()
   float newtemp = TemperatureHandler.Min;
   programStep step;
 
+  if (overrideTime > now) return;
+  
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
     EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
@@ -370,19 +397,16 @@ void CheckSchedule()
     stepIdx++;
   }
 
-  if (stepIdx == currentStep) return;  // Otherwise we reset any temporary manual override!
+  setpoint = newtemp;
 
   #if DEBUG > 2
     if (setpoint != newtemp)
     {
       Serial.print(timestamp);
       Serial.print(F(" New setpoint: "));
-      Serial.println(newtemp);
+      Serial.println(setpoint);
     }
   #endif
-
-  setpoint = newtemp;
-  currentStep = stepIdx;
 }
 
 
@@ -868,12 +892,12 @@ void setup()
   SleepHandler.Min =                                0;
   SleepHandler.Max =                                0;
   SleepHandler.Increment =                          0;
-  SleepHandler.EncoderRotatedFunction =             &SwitchToTemperature;
+  SleepHandler.EncoderRotatedFunction =             &WakingUp;
   SleepHandler.DisplayFunction =                    &DisplayOFF;
-  SleepHandler.ButtonClickedFunction =              &SwitchToTemperature;
-  SleepHandler.ButtonDoubleClickedFunction =        &SwitchToTemperature;
+  SleepHandler.ButtonClickedFunction =              &WakingUp;
+  SleepHandler.ButtonDoubleClickedFunction =        &WakingUp;
   SleepHandler.ButtonHeldFunction =                 &NullFunction;
-  SleepHandler.ButtonReleasedFunction =             &SwitchToTemperature;
+  SleepHandler.ButtonReleasedFunction =             &WakingUp;
 
   OffHandler.uint8_value =                          NULL;
   OffHandler.Min =                                  0;
@@ -948,17 +972,15 @@ void loop()
     {
       GetTemperature();
 
-      if (now > overrideTime & !clockFailed)
+      if (!clockFailed)
       {
         CheckSchedule();
       }
 
       SetRelay();
+      
+      CheckIdle();
 
-      if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
-      {
-        handler = &SleepHandler;
-      }
     }
   }
 
