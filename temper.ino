@@ -219,6 +219,10 @@ void EncoderDispatcher()
     {
       lastTouched = now;
       handler->EncoderRotatedFunction(value);
+      if (handler == &TemperatureHandler & overrideTime < now)
+      {
+        overrideTime = now + DEFAULT_OVERRIDE_TIME;
+      }
     }
   }
   else
@@ -615,39 +619,44 @@ void DisplayTimeSetting()
   }
 
   tempString[10] = '\0';
-  switch (handler->id)
+
+  if (handler == &SetYearHandler)
   {
-    case 1:
       x0 = 0;
       x1 = 30;
       y = 40;
-      break;
-    case 2:
+  }
+  else if (handler == &SetMonthHandler)
+  {
       x0 = 40;
       x1 = 54;
       y = 40;
-      break;
-    case 3:
+  }
+  else if (handler == &SetDayHandler)
+  {
       x0 = 64;
       x1 = 78;
       y = 40;
-      break;
-    case 4:
+  }
+  else if (handler == &SetHoursHandler)
+  {
       x0 = 0;
       x1 = 14;
       y = 63;
-      break;
-    case 5:
+  }
+  else if (handler == &SetMinutesHandler)
+  {
       x0 = 24;
       x1 = 38;
       y = 63;
-      break;
-    case 6:
+  }
+  else if (handler == &SetSecondsHandler)
+  {
       x0 = 48;
       x1 = 62;
       y = 63;
-      break;
   }
+
   u8g2.firstPage();
   u8g2.setFont(MEDIUM_FONT);
   do {
@@ -768,7 +777,6 @@ void setup()
   Timer1.attachInterrupt(timerIsr);
 
   // Configure handlers
-  TemperatureHandler.id =                           0;
   TemperatureHandler.float_value =                  &setpoint;
   TemperatureHandler.Min =                          TEMP_MIN;
   TemperatureHandler.Max =                          TEMP_MAX;
@@ -780,7 +788,6 @@ void setup()
   TemperatureHandler.ButtonHeldFunction =           &NullFunction;
   TemperatureHandler.ButtonReleasedFunction =       &ChangeStatus;
 
-  SetYearHandler.id =                               1;
   SetYearHandler.tm_base =                          &tmSettings;
   SetYearHandler.uint16_value =                     &SetYearHandler.tm_base->tm_year;
   SetYearHandler.Min =                              117;
@@ -793,7 +800,6 @@ void setup()
   SetYearHandler.ButtonHeldFunction =               &NullFunction;
   SetYearHandler.ButtonReleasedFunction =           &SwitchToTemperature;
 
-  SetMonthHandler.id =                              2;
   SetMonthHandler.tm_base =                         &tmSettings;
   SetMonthHandler.uint8_value =                     &SetYearHandler.tm_base->tm_mon;
   SetMonthHandler.Min =                             0;
@@ -806,7 +812,6 @@ void setup()
   SetMonthHandler.ButtonHeldFunction =              &NullFunction;
   SetMonthHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
-  SetDayHandler.id =                                3;
   SetDayHandler.tm_base =                           &tmSettings;
   SetDayHandler.uint8_value =                       &SetYearHandler.tm_base->tm_mday;
   SetDayHandler.Min =                               1;
@@ -819,7 +824,6 @@ void setup()
   SetDayHandler.ButtonHeldFunction =                &NullFunction;
   SetDayHandler.ButtonReleasedFunction =            &SwitchToTemperature;
 
-  SetHoursHandler.id =                              4;
   SetHoursHandler.tm_base =                         &tmSettings;
   SetHoursHandler.uint8_value =                     &SetYearHandler.tm_base->tm_hour;
   SetHoursHandler.Min =                             0;
@@ -832,7 +836,6 @@ void setup()
   SetHoursHandler.ButtonHeldFunction =              &NullFunction;
   SetHoursHandler.ButtonReleasedFunction =          &SwitchToTemperature;
 
-  SetMinutesHandler.id =                            5;
   SetMinutesHandler.tm_base =                       &tmSettings;
   SetMinutesHandler.uint8_value =                   &SetYearHandler.tm_base->tm_min;
   SetMinutesHandler.Min =                           0;
@@ -849,7 +852,6 @@ void setup()
   SetMinutesHandler.ButtonHeldFunction =            &NullFunction;
   SetMinutesHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
-  SetSecondsHandler.id  =                           6;
   SetSecondsHandler.tm_base =                       &tmSettings;
   SetSecondsHandler.uint8_value =                   &SetYearHandler.tm_base->tm_sec;
   SetSecondsHandler.Min =                           0;
@@ -862,7 +864,6 @@ void setup()
   SetSecondsHandler.ButtonHeldFunction =            &NullFunction;
   SetSecondsHandler.ButtonReleasedFunction =        &SwitchToTemperature;
 
-  SleepHandler.id  =                                0;
   SleepHandler.uint8_value =                        NULL;
   SleepHandler.Min =                                0;
   SleepHandler.Max =                                0;
@@ -874,7 +875,6 @@ void setup()
   SleepHandler.ButtonHeldFunction =                 &NullFunction;
   SleepHandler.ButtonReleasedFunction =             &SwitchToTemperature;
 
-  OffHandler.id  =                                  0;
   OffHandler.uint8_value =                          NULL;
   OffHandler.Min =                                  0;
   OffHandler.Max =                                  0;
