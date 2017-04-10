@@ -504,9 +504,9 @@ void DisplayTemperature()
     tempString,
     tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
   dtostrf(setpoint, 5, 1, tempString);
-  sprintf(lcdLine2, "S%5s %5s %3s",
+  sprintf(lcdLine2, "S%5s  %3s  %3s",
     tempString,
-    (overrideTime > 0 ? GetFormattedOverrideTime() : ""),
+    (overrideTime > now ? "OVR" : ""),
     (relayStatus == relayTarget ? (relayTarget ? " ON" : "OFF") : (relayTarget ? " on" : "off")));
   RefreshLCD();
 }
