@@ -4,7 +4,7 @@ void serialEvent()
 {
   #define SERBUF_SIZE 20
   #define MIN_CMD 1
-  #define MAX_CMD 5
+  #define MAX_CMD 6
 
   int addr;
   int cmd;
