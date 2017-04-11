@@ -49,6 +49,7 @@
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
 #define DEFAULT_OVERRIDE_TIME 3600
+#define MY_ADDR 1
 
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
@@ -77,10 +78,6 @@
       }
 #endif
 
-#if DEBUG > 0
-  char timestamp[20];
-#endif
-
 float temperature;
 float setpoint;
 bool relayTarget;
@@ -95,6 +92,7 @@ time_t lastTouched;
 time_t overrideTime;
 struct tm tmOverride;
 char tempString[20];
+char timestamp[20];
 bool status;
 bool tempFailed;
 bool clockFailed;

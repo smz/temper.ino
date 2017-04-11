@@ -1,5 +1,236 @@
 #include "temperino.h"
 
+void serialEvent()
+{
+  #define SERBUF_SIZE 20
+  #define MIN_CMD 1
+  #define MAX_CMD 5
+
+  int addr;
+  int cmd;
+  int stepIdx;
+  programStep step;
+  uint8_t len;
+  char serbuf[SERBUF_SIZE];
+  char cmdString[SERBUF_SIZE];
+  static char delimiters[] = " ,";
+  char *token;
+  bool ok;
+  float tempTemp;
+  time_t tempTime;
+
+  len = Serial.readBytesUntil('\n', serbuf, SERBUF_SIZE-1);
+  serbuf[len] = '\0';
+  strcpy(cmdString, serbuf);
+  addr = atoi(strtok(cmdString, delimiters));
+
+  if (addr == MY_ADDR)
+  {
+    cmd = atoi(strtok(NULL, delimiters));
+
+    if (cmd >= MIN_CMD && cmd <= MAX_CMD)
+    {
+      ok = true;
+      switch (cmd)
+      {
+        case 1:
+          Serial.print(MY_ADDR);
+          Serial.print(',');
+          Serial.print(cmd);
+          Serial.print(',');
+          Serial.println(temperature);
+          break;
+        case 2:
+          if ((token = strtok(NULL, delimiters)) != NULL)
+          {
+            tempTemp = atof(token);
+            if (tempTemp >= TEMP_MIN && tempTemp <= TEMP_MAX)
+            {
+              setpoint = tempTemp;
+              if (overrideTime <= now)
+              {
+                overrideTime += DEFAULT_OVERRIDE_TIME;
+              }
+            }
+            else
+            {
+              ok = false;
+            }
+          }
+          if (ok)
+          {
+            Serial.print(MY_ADDR);
+            Serial.print(',');
+            Serial.print(cmd);
+            Serial.print(',');
+            Serial.println(setpoint);
+          }
+          break;
+        case 3:
+          if ((token = strtok(NULL, delimiters)) != NULL)
+          {
+            tempTime = atot(token);
+            if (tempTime >= 0)
+            {
+              now = tempTime;
+              Rtc.SetTime(&now);
+              localtime_r(&now, &tmNow);
+            }
+            else
+            {
+              ok = false;
+            }
+          }
+          if (ok)
+          {
+            Serial.print(MY_ADDR);
+            Serial.print(',');
+            Serial.print(cmd);
+            Serial.print(',');
+            Serial.println(now);
+          }
+          break;
+        case 4:
+          if ((token = strtok(NULL, delimiters)) != NULL)
+          {
+            tempTime = atot(token);
+            if (tempTime >= 0)
+            {
+              overrideTime = tempTime;
+            }
+            else
+            {
+              ok = false;
+            }
+          }
+          if (ok)
+          {
+            Serial.print(MY_ADDR);
+            Serial.print(',');
+            Serial.print(cmd);
+            Serial.print(',');
+            Serial.println(overrideTime);
+          }
+          break;
+        case 5:
+          Serial.print(MY_ADDR);
+          Serial.print(',');
+          Serial.print(cmd);
+          Serial.print(',');
+          Serial.println(timestamp);
+          break;
+        case 6:
+          if ((token = strtok(NULL, delimiters)) == NULL)
+          {
+            for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
+            {
+              EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
+              Serial.print(MY_ADDR);
+              Serial.print(',');
+              Serial.print(cmd);
+              Serial.print(',');
+              Serial.print(stepIdx);
+              Serial.print(',');
+              Serial.print(step.tow);
+              Serial.print(',');
+              Serial.println(step.temperature);
+            }
+          }
+          else
+          {
+            stepIdx = atoi(token);
+            if (stepIdx < 0 || stepIdx >= MAX_WEEKLY_STEPS)
+            {
+              ok = false;
+            }
+            else
+            {
+              if ((token = strtok(NULL, delimiters)) == NULL)
+              {
+                EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
+                Serial.print(MY_ADDR);
+                Serial.print(',');
+                Serial.print(cmd);
+                Serial.print(',');
+                Serial.print(stepIdx);
+                Serial.print(',');
+                Serial.print(step.tow);
+                Serial.print(',');
+                Serial.println(step.temperature);
+              }
+              else
+              {
+                step.tow = atoi(token);
+                if (step.tow < 0 || step.tow >= 62359)
+                {
+                  ok = false;
+                }
+                else
+                {
+                  if ((token = strtok(NULL, delimiters)) == NULL)
+                  {
+                    ok = false;
+                  }
+                  else
+                  {
+                    step.temperature = atof(token);
+                    if (step.temperature < TEMP_MIN || step.temperature > TEMP_MAX)
+                    {
+                      ok = false;
+                    }
+                    else
+                    {
+                      PutStepToEEPROM(stepIdx, step);
+                      Serial.print(MY_ADDR);
+                      Serial.print(',');
+                      Serial.print(cmd);
+                      Serial.print(',');
+                      Serial.print(stepIdx);
+                      Serial.print(',');
+                      Serial.print(step.tow);
+                      Serial.print(',');
+                      Serial.println(step.temperature);
+                    }
+                  }
+                }
+              }
+            }
+          }
+          break;
+        default:
+          ok = false;
+      }
+    }
+    else
+    {
+      ok = false;
+    }
+
+    if (!ok)
+    {
+      Serial.print(MY_ADDR);
+      Serial.print(",0,\"");
+      Serial.print(serbuf);
+      Serial.println('"');
+    }
+
+  }
+}
+
+time_t atot(char *str)
+{
+  time_t t = 0;
+  uint8_t i;
+  uint8_t len = strlen(str);
+
+  for (i = 0; i < len; i++)
+  {
+    t *= 10;
+    t += str[i] - '0';
+  }
+
+  return t;
+}
 
 void NullFunction()
 {
@@ -32,14 +263,14 @@ void WakingUp()
 
 void CheckIdle()
 {
-  if (handler == &TemperatureHandler & now > lastTouched + SLEEP_AFTER)
+  if (handler == &TemperatureHandler && now > lastTouched + SLEEP_AFTER)
   {
     SleepHandler.DisplayFunction = &DisplayOFF;
     handler = &SleepHandler;
    }
 
-  if (handler == &SleepHandler &
-      SleepHandler.DisplayFunction == DisplayTemperature &
+  if (handler == &SleepHandler &&
+      SleepHandler.DisplayFunction == DisplayTemperature &&
       now > lastTouched + 1)
   {
     SwitchToTemperature();
@@ -178,7 +409,7 @@ void UpdateUint8Value (int16_t value)
 {
   int increment = value * handler->Increment;
 
-  if (increment < 0 & *handler->uint8_value < abs(increment))
+  if (increment < 0 && *handler->uint8_value < abs(increment))
   {
     *handler->uint8_value = 0;
   }
@@ -207,7 +438,7 @@ void UpdateUint16Value (int16_t value)
 {
   int increment = value * handler->Increment;
 
-  if (increment < 0 & *handler->uint16_value < abs(increment))
+  if (increment < 0 && *handler->uint16_value < abs(increment))
   {
     *handler->uint16_value = 0;
   }
@@ -307,9 +538,7 @@ void GetTime()
   }
 
   localtime_r(&now, &tmNow);
-  #if DEBUG > 0
-    strcpy(timestamp, isotime(&tmNow));
-  #endif
+  strcpy(timestamp, isotime(&tmNow));
   nowTOW = tmNow.tm_wday * 10000 + tmNow.tm_hour * 100 + tmNow.tm_min;
 }
 
@@ -388,7 +617,7 @@ void CheckSchedule()
   programStep step;
 
   if (overrideTime > now) return;
-  
+
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
     EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
@@ -730,8 +959,8 @@ void setup()
 {
 
   // Setup Serial
+  Serial.begin(SERIAL_SPEED);
   #if DEBUG > 0
-    Serial.begin(SERIAL_SPEED);
     Serial.println(F("Setup started."));
   #endif
 
@@ -978,7 +1207,7 @@ void loop()
       }
 
       SetRelay();
-      
+
       CheckIdle();
 
     }
