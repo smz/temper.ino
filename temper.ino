@@ -219,6 +219,7 @@ void serialEvent()
   }
 }
 
+
 time_t atot(char *str)
 {
   time_t t = 0;
@@ -234,9 +235,11 @@ time_t atot(char *str)
   return t;
 }
 
+
 void NullFunction()
 {
 }
+
 
 void ChangeStatus()
 {
@@ -254,6 +257,7 @@ void ChangeStatus()
   EEPROM.put(EEPROMstatusAddress, status);
 }
 
+
 void WakingUp()
 {
   #if DEBUG > 1
@@ -262,6 +266,7 @@ void WakingUp()
   #endif
   SleepHandler.DisplayFunction = &DisplayTemperature;
 }
+
 
 void CheckIdle()
 {
@@ -278,6 +283,7 @@ void CheckIdle()
     SwitchToTemperature();
   }
 }
+
 
 void SwitchToSetTime()
 {
@@ -296,6 +302,7 @@ void SwitchToSetTime()
   settingOverride = false;
   SwitchToSetYear();
 }
+
 
 void SwitchToSetOverride()
 {
@@ -320,11 +327,13 @@ void SwitchToSetOverride()
   SwitchToSetYear();
 }
 
+
 void SwitchToSetYear()
 {
   SetYearHandler.uint16_value = &SetYearHandler.tm_base->tm_year;
   handler = &SetYearHandler;
 }
+
 
 void SwitchToSetMonth()
 {
@@ -332,11 +341,13 @@ void SwitchToSetMonth()
   handler = &SetMonthHandler;
 }
 
+
 void SwitchToSetDay()
 {
   SetDayHandler.uint8_value = &SetDayHandler.tm_base->tm_mday;
   handler = &SetDayHandler;
 }
+
 
 void SwitchToSetHours()
 {
@@ -344,11 +355,13 @@ void SwitchToSetHours()
   handler = &SetHoursHandler;
 }
 
+
 void SwitchToSetMinutes()
 {
   SetMinutesHandler.uint8_value = &SetMinutesHandler.tm_base->tm_min;
   handler = &SetMinutesHandler;
 }
+
 
 void SwitchToSetSeconds()
 {
@@ -362,6 +375,7 @@ void SwitchToSetSeconds()
     handler = &SetSecondsHandler;
   }
 }
+
 
 void SetTime()
 {
@@ -379,6 +393,7 @@ void SetTime()
   }
   SwitchToTemperature();
 }
+
 
 void SwitchToTemperature()
 {
@@ -409,6 +424,7 @@ void UpdateFloatValue (int16_t value)
   #endif
 }
 
+
 void UpdateUint8Value (int16_t value)
 {
   int increment = value * handler->Increment;
@@ -437,6 +453,7 @@ void UpdateUint8Value (int16_t value)
     mySerial.println(*handler->uint8_value);
   #endif
 }
+
 
 void UpdateUint16Value (int16_t value)
 {
@@ -1232,7 +1249,6 @@ void loop()
       SetRelay();
 
       CheckIdle();
-
     }
   }
 
