@@ -19,7 +19,7 @@ void serialEvent()
   float tempTemp;
   time_t tempTime;
 
-  len = Serial.readBytesUntil('\n', serbuf, SERBUF_SIZE-1);
+  len = mySerial.readBytesUntil('\n', serbuf, SERBUF_SIZE-1);
   serbuf[len] = '\0';
   strcpy(cmdString, serbuf);
   addr = atoi(strtok(cmdString, delimiters));
@@ -33,14 +33,14 @@ void serialEvent()
       ok = true;
       switch (cmd)
       {
-        case 1:
-          Serial.print(MY_ADDR);
-          Serial.print(',');
-          Serial.print(cmd);
-          Serial.print(',');
-          Serial.println(temperature);
+        case 1: // Read temperature
+          mySerial.print(MY_ADDR);
+          mySerial.print(',');
+          mySerial.print(cmd);
+          mySerial.print(',');
+          mySerial.println(temperature);
           break;
-        case 2:
+        case 2: // Read/Set setpoint
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTemp = atof(token);
@@ -59,20 +59,20 @@ void serialEvent()
           }
           if (ok)
           {
-            Serial.print(MY_ADDR);
-            Serial.print(',');
-            Serial.print(cmd);
-            Serial.print(',');
-            Serial.println(setpoint);
+            mySerial.print(MY_ADDR);
+            mySerial.print(',');
+            mySerial.print(cmd);
+            mySerial.print(',');
+            mySerial.println(setpoint);
           }
           break;
-        case 3:
+        case 3: // Read/Set time
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTime = atot(token);
             if (tempTime >= 0)
             {
-              now = tempTime;
+              now = tempTime - UNIX_OFFSET;
               Rtc.SetTime(&now);
               localtime_r(&now, &tmNow);
             }
@@ -83,20 +83,20 @@ void serialEvent()
           }
           if (ok)
           {
-            Serial.print(MY_ADDR);
-            Serial.print(',');
-            Serial.print(cmd);
-            Serial.print(',');
-            Serial.println(now);
+            mySerial.print(MY_ADDR);
+            mySerial.print(',');
+            mySerial.print(cmd);
+            mySerial.print(',');
+            mySerial.println(now + UNIX_OFFSET);
           }
           break;
-        case 4:
+        case 4: // Read/Set override time
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTime = atot(token);
             if (tempTime >= 0)
             {
-              overrideTime = tempTime;
+              overrideTime = tempTime - UNIX_OFFSET;
             }
             else
             {
@@ -105,35 +105,35 @@ void serialEvent()
           }
           if (ok)
           {
-            Serial.print(MY_ADDR);
-            Serial.print(',');
-            Serial.print(cmd);
-            Serial.print(',');
-            Serial.println(overrideTime);
+            mySerial.print(MY_ADDR);
+            mySerial.print(',');
+            mySerial.print(cmd);
+            mySerial.print(',');
+            mySerial.println(overrideTime + UNIX_OFFSET);
           }
           break;
-        case 5:
-          Serial.print(MY_ADDR);
-          Serial.print(',');
-          Serial.print(cmd);
-          Serial.print(',');
-          Serial.println(timestamp);
+        case 5: // Read timestamp
+          mySerial.print(MY_ADDR);
+          mySerial.print(',');
+          mySerial.print(cmd);
+          mySerial.print(',');
+          mySerial.println(timestamp);
           break;
-        case 6:
+        case 6: // Read/Set schedule
           if ((token = strtok(NULL, delimiters)) == NULL)
           {
             for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
             {
               EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
-              Serial.print(MY_ADDR);
-              Serial.print(',');
-              Serial.print(cmd);
-              Serial.print(',');
-              Serial.print(stepIdx);
-              Serial.print(',');
-              Serial.print(step.tow);
-              Serial.print(',');
-              Serial.println(step.temperature);
+              mySerial.print(MY_ADDR);
+              mySerial.print(',');
+              mySerial.print(cmd);
+              mySerial.print(',');
+              mySerial.print(stepIdx);
+              mySerial.print(',');
+              mySerial.print(step.tow);
+              mySerial.print(',');
+              mySerial.println(step.temperature);
             }
           }
           else
@@ -148,15 +148,15 @@ void serialEvent()
               if ((token = strtok(NULL, delimiters)) == NULL)
               {
                 EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
-                Serial.print(MY_ADDR);
-                Serial.print(',');
-                Serial.print(cmd);
-                Serial.print(',');
-                Serial.print(stepIdx);
-                Serial.print(',');
-                Serial.print(step.tow);
-                Serial.print(',');
-                Serial.println(step.temperature);
+                mySerial.print(MY_ADDR);
+                mySerial.print(',');
+                mySerial.print(cmd);
+                mySerial.print(',');
+                mySerial.print(stepIdx);
+                mySerial.print(',');
+                mySerial.print(step.tow);
+                mySerial.print(',');
+                mySerial.println(step.temperature);
               }
               else
               {
@@ -181,15 +181,15 @@ void serialEvent()
                     else
                     {
                       PutStepToEEPROM(stepIdx, step);
-                      Serial.print(MY_ADDR);
-                      Serial.print(',');
-                      Serial.print(cmd);
-                      Serial.print(',');
-                      Serial.print(stepIdx);
-                      Serial.print(',');
-                      Serial.print(step.tow);
-                      Serial.print(',');
-                      Serial.println(step.temperature);
+                      mySerial.print(MY_ADDR);
+                      mySerial.print(',');
+                      mySerial.print(cmd);
+                      mySerial.print(',');
+                      mySerial.print(stepIdx);
+                      mySerial.print(',');
+                      mySerial.print(step.tow);
+                      mySerial.print(',');
+                      mySerial.println(step.temperature);
                     }
                   }
                 }
@@ -208,10 +208,10 @@ void serialEvent()
 
     if (!ok)
     {
-      Serial.print(MY_ADDR);
-      Serial.print(",0,\"");
-      Serial.print(serbuf);
-      Serial.println('"');
+      mySerial.print(MY_ADDR);
+      mySerial.print(",0,\"");
+      mySerial.print(serbuf);
+      mySerial.println('"');
     }
 
   }
@@ -255,8 +255,8 @@ void ChangeStatus()
 void WakingUp()
 {
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.println(F(" Waking Up."));
+    mySerial.print(timestamp);
+    mySerial.println(F(" Waking Up."));
   #endif
   SleepHandler.DisplayFunction = &DisplayTemperature;
 }
@@ -280,8 +280,8 @@ void CheckIdle()
 void SwitchToSetTime()
 {
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.println(F(" Switching to Time"));
+    mySerial.print(timestamp);
+    mySerial.println(F(" Switching to Time"));
   #endif
   localtime_r(&now, &tmSettings);
   tmSettings.tm_sec = 0;
@@ -298,8 +298,8 @@ void SwitchToSetTime()
 void SwitchToSetOverride()
 {
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.println(F(" Switching to Override"));
+    mySerial.print(timestamp);
+    mySerial.println(F(" Switching to Override"));
   #endif
   if (overrideTime < now)
   {
@@ -379,8 +379,8 @@ void SetTime()
 void SwitchToTemperature()
 {
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.println(F(" Switching to Temperature"));
+    mySerial.print(timestamp);
+    mySerial.println(F(" Switching to Temperature"));
   #endif
   handler = &TemperatureHandler;
 }
@@ -399,9 +399,9 @@ void UpdateFloatValue (int16_t value)
   }
 
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.print(F(" Value (float): "));
-    Serial.println(*handler->float_value);
+    mySerial.print(timestamp);
+    mySerial.print(F(" Value (float): "));
+    mySerial.println(*handler->float_value);
   #endif
 }
 
@@ -428,9 +428,9 @@ void UpdateUint8Value (int16_t value)
   }
 
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.print(F(" Value (uint8): "));
-    Serial.println(*handler->uint8_value);
+    mySerial.print(timestamp);
+    mySerial.print(F(" Value (uint8): "));
+    mySerial.println(*handler->uint8_value);
   #endif
 }
 
@@ -457,9 +457,9 @@ void UpdateUint16Value (int16_t value)
   }
 
   #if DEBUG > 1
-    Serial.print(timestamp);
-    Serial.print(F(" Value (uint16): "));
-    Serial.println(*handler->uint16_value);
+    mySerial.print(timestamp);
+    mySerial.print(F(" Value (uint16): "));
+    mySerial.println(*handler->uint16_value);
   #endif
 }
 
@@ -484,33 +484,33 @@ void EncoderDispatcher()
   else
   {
     #if DEBUG > 1
-      Serial.print(timestamp);
-      Serial.print(F(" Button "));
+      mySerial.print(timestamp);
+      mySerial.print(F(" Button "));
     #endif
     lastTouched = now;
     switch (b)
     {
       case ClickEncoder::Clicked:
         #if DEBUG > 1
-          Serial.println(F("Clicked"));
+          mySerial.println(F("Clicked"));
         #endif
         handler->ButtonClickedFunction();
         break;
       case ClickEncoder::DoubleClicked:
         #if DEBUG > 1
-          Serial.println(F("DoubleClicked"));
+          mySerial.println(F("DoubleClicked"));
         #endif
         handler->ButtonDoubleClickedFunction();
         break;
       case ClickEncoder::Held:
         #if DEBUG > 1
-          Serial.println(F("Held"));
+          mySerial.println(F("Held"));
         #endif
         handler->ButtonHeldFunction();
         break;
       case ClickEncoder::Released:
         #if DEBUG > 1
-          Serial.println(F("Released"));
+          mySerial.println(F("Released"));
         #endif
         handler->ButtonReleasedFunction();
         break;
@@ -533,7 +533,7 @@ void GetTime()
     clockFailed = true;
     setpoint = TemperatureHandler.Min;
     #if DEBUG > 0
-      Serial.println(F("RTC clock failed!"));
+      mySerial.println(F("RTC clock failed!"));
     #endif
   }
 
@@ -559,8 +559,8 @@ void GetTemperature()
   else
   {
     #if DEBUG > 0
-      Serial.print(timestamp);
-      Serial.println(F(" MCP9808 failed!"));
+      mySerial.print(timestamp);
+      mySerial.println(F(" MCP9808 failed!"));
     #endif
     temperature = TemperatureHandler.Max;
     tempFailed = true;
@@ -590,19 +590,19 @@ void SetRelay()
         prevActivationTime = now;
         relayStatus = relayTarget;
         #if DEBUG > 0
-          Serial.print(timestamp);
-          Serial.println(relayStatus ? F(" Turned on.") : F(" Turned off."));
+          mySerial.print(timestamp);
+          mySerial.println(relayStatus ? F(" Turned on.") : F(" Turned off."));
         #endif
       }
       #if DEBUG > 0
       else
       {
-        Serial.print(timestamp);
-        Serial.print(F(" Setpoint: "));
-        Serial.print(setpoint);
-        Serial.print(F(" Temp: "));
-        Serial.print(temperature);
-        Serial.println(relayTarget ? F(" Turn on!") : F(" Turn off!"));
+        mySerial.print(timestamp);
+        mySerial.print(F(" Setpoint: "));
+        mySerial.print(setpoint);
+        mySerial.print(F(" Temp: "));
+        mySerial.print(temperature);
+        mySerial.println(relayTarget ? F(" Turn on!") : F(" Turn off!"));
       }
       #endif
     }
@@ -631,9 +631,9 @@ void CheckSchedule()
   #if DEBUG > 2
     if (setpoint != newtemp)
     {
-      Serial.print(timestamp);
-      Serial.print(F(" New setpoint: "));
-      Serial.println(setpoint);
+      mySerial.print(timestamp);
+      mySerial.print(F(" New setpoint: "));
+      mySerial.println(setpoint);
     }
   #endif
 }
@@ -645,12 +645,12 @@ void PutStepToEEPROM(int stepIdx, programStep step)
   stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
 
   #if DEBUG > 3
-    Serial.print(F("Storing "));
-    Serial.print(step.tow);
-    Serial.print(F("/"));
-    Serial.print(step.temperature);
-    Serial.print(F(" @ "));
-    Serial.print(stepIdx);
+    mySerial.print(F("Storing "));
+    mySerial.print(step.tow);
+    mySerial.print(F("/"));
+    mySerial.print(step.temperature);
+    mySerial.print(F(" @ "));
+    mySerial.print(stepIdx);
   #endif
 
   EEPROM.get(stepIdx, tempStep);
@@ -659,13 +659,13 @@ void PutStepToEEPROM(int stepIdx, programStep step)
   {
     EEPROM.put(stepIdx, step);
     #if DEBUG > 3
-      Serial.println(F(" Done!"));
+      mySerial.println(F(" Done!"));
     #endif
   }
   #if DEBUG > 3
   else
   {
-      Serial.println(F(" Same, skipping!"));
+      mySerial.println(F(" Same, skipping!"));
   }
   #endif
 
@@ -876,43 +876,43 @@ void DisplayTimeSetting()
   if (handler == &SetYearHandler)
   {
       x0 = 0;
-      x1 = 30;
+      x1 = 45;
       y = 40;
   }
   else if (handler == &SetMonthHandler)
   {
-      x0 = 40;
-      x1 = 54;
+      x0 = 60;
+      x1 = 81;
       y = 40;
   }
   else if (handler == &SetDayHandler)
   {
-      x0 = 64;
-      x1 = 78;
+      x0 = 96;
+      x1 = 117;
       y = 40;
   }
   else if (handler == &SetHoursHandler)
   {
       x0 = 0;
-      x1 = 14;
+      x1 = 21;
       y = 63;
   }
   else if (handler == &SetMinutesHandler)
   {
-      x0 = 24;
-      x1 = 38;
+      x0 = 36;
+      x1 = 57;
       y = 63;
   }
   else if (handler == &SetSecondsHandler)
   {
-      x0 = 48;
-      x1 = 62;
+      x0 = 72;
+      x1 = 93;
       y = 63;
   }
 
   u8g2.firstPage();
-  u8g2.setFont(MEDIUM_FONT);
   do {
+    u8g2.setFont(SMALL_FONT);
     if (settingOverride)
     {
       u8g2.drawStr(0, 13, OVERRIDE_TIME_SETTINGS_MSG);
@@ -921,8 +921,9 @@ void DisplayTimeSetting()
     {
       u8g2.drawStr(0, 13, TIME_SETTINGS_MSG);
     }
-    u8g2.drawStr(0, 38, tempString);
-    u8g2.drawStr(0, 61, &tempString[11]);
+    u8g2.setFont(BIG_FONT);
+    u8g2.drawStr(0, 37, tempString);
+    u8g2.drawStr(0, 60, &tempString[11]);
     u8g2.drawLine(x0, y, x1, y);
   } while (u8g2.nextPage());
 }
@@ -946,7 +947,7 @@ void DisplayOffStatus()
   {
     u8g2.firstPage();
     do {
-      u8g2.setFont(HUGE_FONT);
+      u8g2.setFont(BIG_FONT);
       u8g2.drawStr(45, 40, "OFF");
     } while (u8g2.nextPage());
   }
@@ -958,10 +959,10 @@ void DisplayOffStatus()
 void setup()
 {
 
-  // Setup Serial
-  Serial.begin(SERIAL_SPEED);
+  // Setup mySerial
+  mySerial.begin(SERIAL_SPEED);
   #if DEBUG > 0
-    Serial.println(F("Setup started."));
+    mySerial.println(F("Setup started."));
   #endif
 
   // Setup LCD
@@ -976,13 +977,13 @@ void setup()
 
   // Print debug info
   #if DEBUG > 0
-    Serial.print(F("Using "));
+    mySerial.print(F("Using "));
     #ifdef DS3231
-      Serial.print (F("DS3231"));
+      mySerial.print (F("DS3231"));
     #else
-      Serial.print (F("DS1307"));
+      mySerial.print (F("DS1307"));
     #endif
-    Serial.println(F(" RTC"));
+    mySerial.println(F(" RTC"));
   #endif
 
   // Setup RTC
@@ -996,7 +997,7 @@ void setup()
   if (!Rtc.GetIsRunning())
   {
     #if DEBUG > 0
-      Serial.println(F("WARNING: RTC wasn't running, starting it now."));
+      mySerial.println(F("WARNING: RTC wasn't running, starting it now."));
     #endif
     Rtc.SetIsRunning(true);
   }
@@ -1013,14 +1014,14 @@ void setup()
     {
       tempFailed = true;
       #if DEBUG > 0
-        Serial.println(F("Couldn't find MCP9808!"));
+        mySerial.println(F("Couldn't find MCP9808!"));
       #endif
     }
     tempsensor.setResolution(MCP9808_TEMP_RESOLUTION);
     #if DEBUG > 0
       uint8_t temperatureResolution = tempsensor.getResolution();
-      Serial.print(F("MCP9808"));
-      DUMP(temperatureResolution);
+      mySerial.print(F("MCP9808 temperature resolution: "));
+      mySerial.println(temperatureResolution);
     #endif
   #endif
 
@@ -1167,8 +1168,8 @@ void setup()
 
   #if DEBUG > 0
     strcpy(timestamp, isotime(&tmNow));
-    Serial.print(timestamp);
-    Serial.println(F(" Starting"));
+    mySerial.print(timestamp);
+    mySerial.println(F(" Starting"));
   #endif
 
   // End of Setup

@@ -10,9 +10,6 @@
 //  9 Everything
 #define DEBUG 0
 
-#if DEBUG > 0
-  #include "debug.h"
-#endif
 
 // Project configuration parameters
 #undef  DS3231
@@ -21,6 +18,7 @@
 #undef  SOFTWARE_WIRE
 #undef  LCD
 #define SH1106
+#define AUTO485
 
 
 // Connections
@@ -34,7 +32,7 @@
 
 
 // Operative parameters
-#define SERIAL_SPEED 57600
+#define SERIAL_SPEED 9600
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
 #define TEMP_MIN 5.0
@@ -71,9 +69,9 @@
 #if DEBUG > 8
   unsigned long loops = 0;
   #define PrintLoops() {           \
-      Serial.print(timestamp);     \
-      Serial.print(F(" Loops: ")); \
-      Serial.println(loops);       \
+      mySerial.print(timestamp);     \
+      mySerial.print(F(" Loops: ")); \
+      mySerial.println(loops);       \
       loops = 0;                   \
       }
 #endif
@@ -98,10 +96,20 @@ bool tempFailed;
 bool clockFailed;
 bool settingOverride;
 
-
 // Schedule table
 typedef struct {uint16_t tow; float temperature;} programStep;
 #define programStepsBaseAddress (0 + sizeof(bool))  // We have "status" before
+
+
+// RS-485 support
+#ifdef AUTO485
+  #include <Auto485.h>
+  #define mySerial Auto485Bus
+  #define DE_PIN 10
+  Auto485 mySerial(DE_PIN);
+#else
+  #define mySerial Serial
+#endif
 
 
 // LCD
@@ -116,10 +124,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;
 // SH1106 OLED
 #ifdef SH1106
   #include <U8g2lib.h>
-//#define HUGE_FONT u8g2_font_profont29_tr
-  #define HUGE_FONT u8g2_font_profont22_tr
   #define BIG_FONT u8g2_font_profont22_tr
-  #define MEDIUM_FONT u8g2_font_8x13B_tr
   #define SMALL_FONT u8g2_font_7x13B_tr
   U8G2_SH1106_128X64_VCOMH0_1_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 #endif
@@ -167,7 +172,6 @@ void timerIsr()
 {
   encoder->service();
 }
-
 
 typedef (EncoderRotatedFunction_t)(int16_t value);
 typedef (DisplayFunction_t)();
