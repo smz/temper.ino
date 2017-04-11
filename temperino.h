@@ -49,6 +49,7 @@
 #define DEFAULT_OVERRIDE_TIME 3600
 #define MY_ADDR 1
 
+
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
 #define DST_RULES EU
@@ -56,6 +57,7 @@
 #if DST_RULES == EU
   #include "eu_dst.h"
 #endif
+
 
 // i18n
 #define MONTHS "Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
@@ -65,17 +67,8 @@
 #define TEMP_FAILED_MSG "ERR!"
 #define CLOCK_FAILED_MSG "ERRORE OROLOGIO!"
 
-// Global variables
-#if DEBUG > 8
-  unsigned long loops = 0;
-  #define PrintLoops() {           \
-      mySerial.print(timestamp);     \
-      mySerial.print(F(" Loops: ")); \
-      mySerial.println(loops);       \
-      loops = 0;                   \
-      }
-#endif
 
+// Global variables
 float temperature;
 float setpoint;
 bool relayTarget;
@@ -87,18 +80,33 @@ struct tm tmNow;
 struct tm tmSettings;
 uint16_t nowTOW;
 time_t lastTouched;
-time_t overrideTime;
 struct tm tmOverride;
 char tempString[20];
 char timestamp[20];
-bool status;
 bool tempFailed;
 bool clockFailed;
 bool settingOverride;
+#if DEBUG > 8
+  unsigned long loops = 0;
+  #define PrintLoops() {           \
+      mySerial.print(timestamp);     \
+      mySerial.print(F(" Loops: ")); \
+      mySerial.println(loops);       \
+      loops = 0;                   \
+      }
+#endif
 
+
+// EEPROM storage
 // Schedule table
-typedef struct {uint16_t tow; float temperature;} programStep;
-#define programStepsBaseAddress (0 + sizeof(bool))  // We have "status" before
+bool status;
+#define EEPROMstatusAddress (0)
+
+time_t overrideTime;
+#define EEPROMoverrideTimeAddress (sizeof(bool))
+
+typedef struct {uint16_t tow; float temperature;} programStep;  // there will be many of this...
+#define EEPROMstepAddress(x) (EEPROMoverrideTimeAddress + sizeof(time_t) + x * sizeof(programStep))
 
 
 // RS-485 support

@@ -50,6 +50,7 @@ void serialEvent()
               if (overrideTime <= now)
               {
                 overrideTime += DEFAULT_OVERRIDE_TIME;
+                EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
               }
             }
             else
@@ -97,6 +98,7 @@ void serialEvent()
             if (tempTime >= 0)
             {
               overrideTime = tempTime - UNIX_OFFSET;
+              EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
             }
             else
             {
@@ -124,7 +126,7 @@ void serialEvent()
           {
             for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
             {
-              EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
+              EEPROM.get(EEPROMstepAddress(stepIdx), step);
               mySerial.print(MY_ADDR);
               mySerial.print(',');
               mySerial.print(cmd);
@@ -147,7 +149,7 @@ void serialEvent()
             {
               if ((token = strtok(NULL, delimiters)) == NULL)
               {
-                EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
+                EEPROM.get(EEPROMstepAddress(stepIdx), step);
                 mySerial.print(MY_ADDR);
                 mySerial.print(',');
                 mySerial.print(cmd);
@@ -249,7 +251,7 @@ void ChangeStatus()
     status = true;
     handler = &TemperatureHandler;
   }
-  EEPROM.put(0, status);
+  EEPROM.put(EEPROMstatusAddress, status);
 }
 
 void WakingUp()
@@ -304,6 +306,7 @@ void SwitchToSetOverride()
   if (overrideTime < now)
   {
     overrideTime = now + DEFAULT_OVERRIDE_TIME;
+    EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
   }
   localtime_r(&overrideTime, &tmOverride);
   tmOverride.tm_sec = 0;
@@ -365,6 +368,7 @@ void SetTime()
   if (settingOverride)
   {
     overrideTime = mktime(&tmOverride);
+    EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
   }
   else
   {
@@ -478,6 +482,7 @@ void EncoderDispatcher()
       if (handler == &TemperatureHandler & overrideTime < now)
       {
         overrideTime = now + DEFAULT_OVERRIDE_TIME;
+        EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
       }
     }
   }
@@ -620,7 +625,7 @@ void CheckSchedule()
 
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
-    EEPROM.get(programStepsBaseAddress + stepIdx * sizeof(programStep), step);
+    EEPROM.get(EEPROMstepAddress(stepIdx), step);
     if (step.tow > nowTOW) break;
     newtemp = step.temperature;
     stepIdx++;
@@ -642,7 +647,7 @@ void CheckSchedule()
 void PutStepToEEPROM(int stepIdx, programStep step)
 {
   programStep tempStep;
-  stepIdx = programStepsBaseAddress + stepIdx * sizeof(programStep);
+  stepIdx = EEPROMstepAddress(stepIdx);
 
   #if DEBUG > 3
     mySerial.print(F("Storing "));
@@ -672,9 +677,9 @@ void PutStepToEEPROM(int stepIdx, programStep step)
 }
 
 
+// Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
 void SetSchedule()
 {
-  // Initialize the weekly schedule
   programStep tempStep;
 
   // This is just for testing. Must be replaced with code to get values from the controller...)
@@ -965,16 +970,20 @@ void setup()
     mySerial.println(F("Setup started."));
   #endif
 
+
   // Setup LCD
   #ifdef LCD
     lcd.begin(16, 2);
   #endif
+
 
   // Setup SH1106 OLED
   #ifdef SH1106
     u8g2.begin();
   #endif
 
+
+  // Setup RTC
   // Print debug info
   #if DEBUG > 0
     mySerial.print(F("Using "));
@@ -986,7 +995,6 @@ void setup()
     mySerial.println(F(" RTC"));
   #endif
 
-  // Setup RTC
   Rtc.Begin();
   set_zone(TIMEZONE);
   #if DST_RULES == EU
@@ -1002,11 +1010,13 @@ void setup()
     Rtc.SetIsRunning(true);
   }
 
+
   #ifdef DS3231
     // Reset the DS3231 RTC status in case it was wrongly configured
     Rtc.Enable32kHzPin(false);
     Rtc.SetSquareWavePin(DS3231SquareWavePin_ModeNone);
   #endif
+
 
   #ifdef MCP9808_TEMP
     // Setup MCP9808
@@ -1025,10 +1035,12 @@ void setup()
     #endif
   #endif
 
+
   // Setup rotary encoder
   encoder = new ClickEncoder(ENCODER_PINS);
   Timer1.initialize(ENCODER_TIMER);
   Timer1.attachInterrupt(timerIsr);
+
 
   // Configure handlers
   TemperatureHandler.float_value =                  &setpoint;
@@ -1140,7 +1152,8 @@ void setup()
   OffHandler.ButtonHeldFunction =                   &NullFunction;
   OffHandler.ButtonReleasedFunction =               &ChangeStatus;
 
-  // Initialize global variables
+
+  // Init global variables
   setpoint = TemperatureHandler.Min;
   temperature = TemperatureHandler.Min;
   relayTarget = false;
@@ -1148,15 +1161,13 @@ void setup()
   digitalWrite(RELAY_PIN, LOW);
   prevMillis = millis() - POLLING_TIME;
 
-  // Initialize the weekly schedule
-  GetTime();
+
+  // Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
   SetSchedule();
-  prevActivationTime = now;
-  lastTouched = now;
-  overrideTime = now;
+  
 
   // Get previous status from EEPROM
-  EEPROM.get(0, status);
+  EEPROM.get(EEPROMstatusAddress, status);
   if (status)
   {
      handler = &TemperatureHandler;
@@ -1165,6 +1176,17 @@ void setup()
   {
      handler = &OffHandler;
   }
+
+
+  // Get previous overrideTime from EEPROM
+  EEPROM.get(EEPROMoverrideTimeAddress, overrideTime);
+
+
+  // Init the time
+  GetTime();
+  prevActivationTime = now;
+  lastTouched = now;
+
 
   #if DEBUG > 0
     strcpy(timestamp, isotime(&tmNow));
