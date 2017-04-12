@@ -1178,10 +1178,6 @@ void setup()
   prevMillis = millis() - POLLING_TIME;
 
 
-  // Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
-  SetSchedule();
-  
-
   // Get previous status from EEPROM
   EEPROM.get(EEPROMstatusAddress, status);
   if (status)
@@ -1202,6 +1198,10 @@ void setup()
   GetTime();
   prevActivationTime = now;
   lastTouched = now;
+
+
+  // Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
+  SetSchedule();
 
 
   #if DEBUG > 0
