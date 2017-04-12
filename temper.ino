@@ -49,8 +49,7 @@ void serialEvent()
               setpoint = tempTemp;
               if (overrideTime <= now)
               {
-                overrideTime += DEFAULT_OVERRIDE_TIME;
-                EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
+                SetOverride(now + DEFAULT_OVERRIDE_TIME);
               }
             }
             else
@@ -97,8 +96,7 @@ void serialEvent()
             tempTime = atot(token);
             if (tempTime >= 0)
             {
-              overrideTime = tempTime - UNIX_OFFSET;
-              EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
+              SetOverride(tempTime - UNIX_OFFSET);
             }
             else
             {
@@ -258,6 +256,13 @@ void ChangeStatus()
 }
 
 
+void SetOverride(time_t time)
+{
+  EEPROM.put(EEPROMoverrideTimeAddress, time);
+  overrideTime = time;
+}
+
+
 void WakingUp()
 {
   #if DEBUG > 1
@@ -312,8 +317,7 @@ void SwitchToSetOverride()
   #endif
   if (overrideTime < now)
   {
-    overrideTime = now + DEFAULT_OVERRIDE_TIME;
-    EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
+    SetOverride(now + DEFAULT_OVERRIDE_TIME);
   }
   localtime_r(&overrideTime, &tmOverride);
   tmOverride.tm_sec = 0;
@@ -381,8 +385,7 @@ void SetTime()
 {
   if (settingOverride)
   {
-    overrideTime = mktime(&tmOverride);
-    EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
+    SetOverride(mktime(&tmOverride));
   }
   else
   {
@@ -498,8 +501,7 @@ void EncoderDispatcher()
       handler->EncoderRotatedFunction(value);
       if (handler == &TemperatureHandler & overrideTime < now)
       {
-        overrideTime = now + DEFAULT_OVERRIDE_TIME;
-        EEPROM.put(EEPROMoverrideTimeAddress, overrideTime);
+        SetOverride(now + DEFAULT_OVERRIDE_TIME);;
       }
     }
   }
