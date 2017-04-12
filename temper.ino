@@ -981,7 +981,7 @@ void DisplayOffStatus()
 void setup()
 {
 
-  // Setup mySerial
+  // Setup serial communication
   mySerial.begin(SERIAL_SPEED);
   #if DEBUG > 0
     mySerial.println(F("Setup started."));
@@ -1001,7 +1001,6 @@ void setup()
 
 
   // Setup RTC
-  // Print debug info
   #if DEBUG > 0
     mySerial.print(F("Using "));
     #ifdef DS3231

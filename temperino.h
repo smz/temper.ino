@@ -29,6 +29,7 @@
 #define SOFTWARE_WIRE_SDA SDA
 #define SOFTWARE_WIRE_SCL SCL
 #define RELAY_PIN 13
+#define AUTO485_DE_PIN 10
 
 
 // Operative parameters
@@ -53,7 +54,6 @@
 // Time parameters
 #define TIMEZONE (1 * ONE_HOUR)
 #define DST_RULES EU
-
 #if DST_RULES == EU
   #include "eu_dst.h"
 #endif
@@ -88,11 +88,11 @@ bool clockFailed;
 bool settingOverride;
 #if DEBUG > 8
   unsigned long loops = 0;
-  #define PrintLoops() {           \
+  #define PrintLoops() {             \
       mySerial.print(timestamp);     \
       mySerial.print(F(" Loops: ")); \
       mySerial.println(loops);       \
-      loops = 0;                   \
+      loops = 0;                     \
       }
 #endif
 
@@ -111,10 +111,10 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 // RS-485 support
 #ifdef AUTO485
+  // Use the Auto485 library by Michael Adams (https://github.com/madleech/Auto485)
   #include <Auto485.h>
   #define mySerial Auto485Bus
-  #define DE_PIN 10
-  Auto485 mySerial(DE_PIN);
+  Auto485 mySerial(AUTO485_DE_PIN);
 #else
   #define mySerial Serial
 #endif
@@ -122,6 +122,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 // LCD
 #ifdef LCD
+  // Use the LiquidCrystal library by Adafruit (https://www.arduino.cc/en/Reference/LiquidCrystal)
   #include <LiquidCrystal.h>
   LiquidCrystal lcd(LCD_PINS);
   char lcdLine1[17];
@@ -131,6 +132,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 // SH1106 OLED
 #ifdef SH1106
+  // Use the u8g2 library by olikraus (https://github.com/olikraus/u8g2)
   #include <U8g2lib.h>
   #define BIG_FONT u8g2_font_profont22_tr
   #define SMALL_FONT u8g2_font_7x13B_tr
@@ -139,6 +141,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 
 // TWI/I2C interface
+// Note: SoftwareWire untested together with SH1106 OLED: it probably wouldn't work or be extremely sluggish
 #ifdef SOFTWARE_WIRE
   #include <SoftwareWire.h>
   #define myWire SoftwareWire
@@ -151,6 +154,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 
 // RTC
+// Use the RTCtime library by smz (https://github.com/smz/Arduino-RTCtime)
 #ifdef DS3231
   #include <RtcDS3231.h>
   RtcDS3231<myWire> Rtc(I2C);
@@ -161,6 +165,7 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 
 // Temperature sensor
+// Use the MCP9808sensor library by smz (https://github.com/smz/Arduino-MCP9808sensor)
 #ifdef MCP9808_TEMP
   #include "MCP9808sensor.h"
   MCP9808sensor<myWire> tempsensor(I2C);
@@ -168,11 +173,8 @@ typedef struct {uint16_t tow; float temperature;} programStep;  // there will be
 
 
 // Rotary Encoder
-// Uses the ClickEncoder library by 0xPIT (https://github.com/0xPIT/encoder)
-// as implemented by soligen2010 (https://github.com/soligen2010/encoder)
-// See:
-// ClickEncoder needs the Timer1 library (http://playground.arduino.cc/Code/Timer1)
-// as implemented by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
+// Use the ClickEncoder library by soligen2010 (https://github.com/soligen2010/encoder
+// Needs the TimerOne library by Paul Stoffregen (https://github.com/PaulStoffregen/TimerOne)
 #include <TimerOne.h>
 #include <ClickEncoder.h>
 ClickEncoder *encoder;
@@ -181,10 +183,12 @@ void timerIsr()
   encoder->service();
 }
 
+
+// Structures defining the different values that can be handled
+// using the rotary encoder and their associated display functions 
 typedef (EncoderRotatedFunction_t)(int16_t value);
 typedef (DisplayFunction_t)();
 typedef (ButtonFunction_t)();
-
 typedef struct
 {
   union {
