@@ -1,5 +1,6 @@
 #include "temperino.h"
 
+// Listen to commands on the serial connection and take action.
 void serialEvent()
 {
   #define SERBUF_SIZE 20
@@ -33,14 +34,38 @@ void serialEvent()
       ok = true;
       switch (cmd)
       {
-        case 1: // Read temperature
+        case CMD_GET_TEMPERATURE: // Get temperature
           mySerial.print(MY_ADDR);
           mySerial.print(',');
           mySerial.print(cmd);
           mySerial.print(',');
           mySerial.println(temperature);
           break;
-        case 2: // Read/Set setpoint
+        case CMD_GET_SET_TIME: // Get-Set time
+          if ((token = strtok(NULL, delimiters)) != NULL)
+          {
+            tempTime = atot(token);
+            if (tempTime >= 0)
+            {
+              now = tempTime - UNIX_OFFSET;
+              Rtc.SetTime(&now);
+              localtime_r(&now, &tmNow);
+            }
+            else
+            {
+              ok = false;
+            }
+          }
+          if (ok)
+          {
+            mySerial.print(MY_ADDR);
+            mySerial.print(',');
+            mySerial.print(cmd);
+            mySerial.print(',');
+            mySerial.println(now + UNIX_OFFSET);
+          }
+          break;
+        case CMD_GET_SET_SETPOINT: // Get-Set setpoint
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTemp = atof(token);
@@ -66,31 +91,7 @@ void serialEvent()
             mySerial.println(setpoint);
           }
           break;
-        case 3: // Read/Set time
-          if ((token = strtok(NULL, delimiters)) != NULL)
-          {
-            tempTime = atot(token);
-            if (tempTime >= 0)
-            {
-              now = tempTime - UNIX_OFFSET;
-              Rtc.SetTime(&now);
-              localtime_r(&now, &tmNow);
-            }
-            else
-            {
-              ok = false;
-            }
-          }
-          if (ok)
-          {
-            mySerial.print(MY_ADDR);
-            mySerial.print(',');
-            mySerial.print(cmd);
-            mySerial.print(',');
-            mySerial.println(now + UNIX_OFFSET);
-          }
-          break;
-        case 4: // Read/Set override time
+        case CMD_GET_SET_OVERRIDE: // Get-Set override time
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTime = atot(token);
@@ -112,28 +113,12 @@ void serialEvent()
             mySerial.println(overrideTime + UNIX_OFFSET);
           }
           break;
-        case 5: // Read timestamp
-          mySerial.print(MY_ADDR);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(timestamp);
-          break;
-        case 6: // Read/Set schedule
+        case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
           if ((token = strtok(NULL, delimiters)) == NULL)
           {
             for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
             {
-              EEPROM.get(EEPROMstepAddress(stepIdx), step);
-              mySerial.print(MY_ADDR);
-              mySerial.print(',');
-              mySerial.print(cmd);
-              mySerial.print(',');
-              mySerial.print(stepIdx);
-              mySerial.print(',');
-              mySerial.print(step.tow);
-              mySerial.print(',');
-              mySerial.println(step.temperature);
+              PrintStep(stepIdx);
             }
           }
           else
@@ -147,16 +132,7 @@ void serialEvent()
             {
               if ((token = strtok(NULL, delimiters)) == NULL)
               {
-                EEPROM.get(EEPROMstepAddress(stepIdx), step);
-                mySerial.print(MY_ADDR);
-                mySerial.print(',');
-                mySerial.print(cmd);
-                mySerial.print(',');
-                mySerial.print(stepIdx);
-                mySerial.print(',');
-                mySerial.print(step.tow);
-                mySerial.print(',');
-                mySerial.println(step.temperature);
+                PrintStep(stepIdx);
               }
               else
               {
@@ -181,15 +157,7 @@ void serialEvent()
                     else
                     {
                       PutStepToEEPROM(stepIdx, step);
-                      mySerial.print(MY_ADDR);
-                      mySerial.print(',');
-                      mySerial.print(cmd);
-                      mySerial.print(',');
-                      mySerial.print(stepIdx);
-                      mySerial.print(',');
-                      mySerial.print(step.tow);
-                      mySerial.print(',');
-                      mySerial.println(step.temperature);
+                      PrintStep(stepIdx);
                     }
                   }
                 }
@@ -218,6 +186,8 @@ void serialEvent()
 }
 
 
+// Convert a string to a time_t value
+// Similar to atoi() and atof()...
 time_t atot(char *str)
 {
   time_t t = 0;
@@ -234,11 +204,13 @@ time_t atot(char *str)
 }
 
 
+// Does nothing, but I need it
 void NullFunction()
 {
 }
 
 
+// Toggle the system status (ON/OFF)
 void ChangeStatus()
 {
   if (status)
@@ -256,6 +228,7 @@ void ChangeStatus()
 }
 
 
+// Set the global overrideTime and store it to EEPROM
 void SetOverride(time_t time)
 {
   EEPROM.put(EEPROMoverrideTimeAddress, time);
@@ -263,6 +236,27 @@ void SetOverride(time_t time)
 }
 
 
+// Read a schedule step and prin it to the serial connection
+void PrintStep(int stepIdx)
+{
+  programStep step;
+  
+  EEPROM.get(EEPROMstepAddress(stepIdx), step);
+  mySerial.print(MY_ADDR);
+  mySerial.print(',');
+  mySerial.print(CMD_GET_SET_SETPOINT);
+  mySerial.print(',');
+  mySerial.print(stepIdx);
+  mySerial.print(',');
+  mySerial.print(step.tow);
+  mySerial.print(',');
+  mySerial.println(step.temperature);
+}
+
+
+// 1st stage of waking up: the display is enabled,
+// but the rotary encoder is still associated to the SleepHandler
+// in order to "consume" extra clicks
 void WakingUp()
 {
   #if DEBUG > 1
@@ -273,6 +267,8 @@ void WakingUp()
 }
 
 
+// Check if the display should be switched off because of lack of human interaction
+// Also 2nd stage of waking up (rotary encoder associated to temperature setting)
 void CheckIdle()
 {
   if (handler == &TemperatureHandler && now > lastTouched + SLEEP_AFTER)
@@ -290,6 +286,7 @@ void CheckIdle()
 }
 
 
+// Switch rotary encoder and display handling to the "Set the time" function
 void SwitchToSetTime()
 {
   #if DEBUG > 1
@@ -309,6 +306,7 @@ void SwitchToSetTime()
 }
 
 
+// Switch rotary encoder and display handling to the "Set the override time" function
 void SwitchToSetOverride()
 {
   #if DEBUG > 1
@@ -332,6 +330,7 @@ void SwitchToSetOverride()
 }
 
 
+// Sub-handler for setting the year
 void SwitchToSetYear()
 {
   SetYearHandler.uint16_value = &SetYearHandler.tm_base->tm_year;
@@ -339,6 +338,7 @@ void SwitchToSetYear()
 }
 
 
+// Sub-handler for setting the month
 void SwitchToSetMonth()
 {
   SetMonthHandler.uint8_value = &SetMonthHandler.tm_base->tm_mon;
@@ -346,6 +346,7 @@ void SwitchToSetMonth()
 }
 
 
+// Sub-handler for setting the day of the month
 void SwitchToSetDay()
 {
   SetDayHandler.uint8_value = &SetDayHandler.tm_base->tm_mday;
@@ -353,6 +354,7 @@ void SwitchToSetDay()
 }
 
 
+// Sub-handler for setting the hour
 void SwitchToSetHours()
 {
   SetHoursHandler.uint8_value = &SetHoursHandler.tm_base->tm_hour;
@@ -360,6 +362,7 @@ void SwitchToSetHours()
 }
 
 
+// Sub-handler for setting the minute
 void SwitchToSetMinutes()
 {
   SetMinutesHandler.uint8_value = &SetMinutesHandler.tm_base->tm_min;
@@ -367,6 +370,7 @@ void SwitchToSetMinutes()
 }
 
 
+// Sub-handler for setting the second
 void SwitchToSetSeconds()
 {
   if (settingOverride)
@@ -381,6 +385,7 @@ void SwitchToSetSeconds()
 }
 
 
+// Set the system or override time and swich back to temperature setting
 void SetTime()
 {
   if (settingOverride)
@@ -398,6 +403,7 @@ void SetTime()
 }
 
 
+// Set the handler to temperature setting
 void SwitchToTemperature()
 {
   #if DEBUG > 1
@@ -408,6 +414,7 @@ void SwitchToTemperature()
 }
 
 
+// Generic function used by the rotary encoder handlers to set a float value
 void UpdateFloatValue (int16_t value)
 {
   *handler->float_value += value * handler->Increment;
@@ -428,6 +435,7 @@ void UpdateFloatValue (int16_t value)
 }
 
 
+// Generic function used by the rotary encoder handlers to set a uint8_8 value
 void UpdateUint8Value (int16_t value)
 {
   int increment = value * handler->Increment;
@@ -458,6 +466,7 @@ void UpdateUint8Value (int16_t value)
 }
 
 
+// Generic function used by the rotary encoder handlers to set a uint16_t value
 void UpdateUint16Value (int16_t value)
 {
   int increment = value * handler->Increment;
@@ -488,6 +497,7 @@ void UpdateUint16Value (int16_t value)
 }
 
 
+// Triggered by the rotary encoder, dispatch to the current "handler"
 void EncoderDispatcher()
 {
   int16_t value = encoder->getValue();
@@ -543,7 +553,7 @@ void EncoderDispatcher()
 }
 
 
-// Get the time
+// Get the time from the RTC
 void GetTime()
 {
   if (Rtc.IsDateTimeValid())
@@ -634,6 +644,7 @@ void SetRelay()
 }
 
 
+// Find the "current" schedule step and apply its temperature setting
 void CheckSchedule()
 {
   int stepIdx = 0;
@@ -663,6 +674,7 @@ void CheckSchedule()
 }
 
 
+// Write a schedule's step to EEPROM
 void PutStepToEEPROM(int stepIdx, programStep step)
 {
   programStep tempStep;
@@ -765,7 +777,7 @@ void DisplayTemperature()
 }
 
 
-// Display page for the time setting
+// Display page for time settings (system or override time)
 void DisplayTimeSetting()
 {
     if (settingOverride)
@@ -793,7 +805,7 @@ void DisplayOFF()
 }
 
 
-// Display the OFF message when the system is inactive
+// Display the OFF message when the system is in the "OFF" state
 void DisplayOffStatus()
 {
   if (now > lastTouched + SLEEP_AFTER)
@@ -878,7 +890,7 @@ void DisplayTemperature()
 }
 
 
-// Display page for the time setting
+// Display page for time settings (system or override time)
 void DisplayTimeSetting()
 {
   u8g2_uint_t x0 = 0;
@@ -960,7 +972,7 @@ void DisplayOFF()
 }
 
 
-// Display the OFF message when the system is inactive
+// Display the OFF message when the system is in the "OFF" state
 void DisplayOffStatus()
 {
   if (now > lastTouched + SLEEP_AFTER)
@@ -979,7 +991,7 @@ void DisplayOffStatus()
 #endif
 
 
-// SETUP
+// Setup function
 void setup()
 {
 
@@ -1211,8 +1223,6 @@ void setup()
     mySerial.print(timestamp);
     mySerial.println(F(" Starting"));
   #endif
-
-  // End of Setup
 }
 
 
@@ -1255,6 +1265,4 @@ void loop()
 
   // Display status on LCD
   handler->DisplayFunction();
-
-  // End of Loop
 }

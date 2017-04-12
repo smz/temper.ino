@@ -68,6 +68,14 @@
 #define CLOCK_FAILED_MSG "ERRORE OROLOGIO!"
 
 
+// Commands
+#define CMD_GET_TEMPERATURE   1
+#define CMD_GET_SET_TIME      2
+#define CMD_GET_SET_SETPOINT  3  
+#define CMD_GET_SET_OVERRIDE  4
+#define CMD_GET_SET_STEPS     5
+
+
 // Global variables
 float temperature;
 float setpoint;
