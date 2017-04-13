@@ -1,4 +1,5 @@
 #include <time.h>
+#include "eu_dst.h"
 #include <EEPROM.h>
 
 // DEBUG
@@ -32,31 +33,28 @@
 #define AUTO485_DE_PIN 10
 
 
-// Operative parameters
-#define SERIAL_SPEED 9600
+// Default configuration values
+#define SIGNATURE "$temper-1x$"
+#define DEFAULT_SERIAL_SPEED 9600
+#define DEFAULT_ADDRESS 1
+#define DEFAULT_TEMP_MIN 5.0
+#define DEFAULT_TEMP_MAX 35.0
+#define DEFAULT_TEMP_INCREMENT 0.5
+#define DEFAULT_TEMP_HYSTERESIS 0.5
+#define DEFAULT_SLEEP_AFTER 60
+#define DEFAULT_RELAY_QUIESCENT_TIME 15
+#define DEFAULT_OVERRIDE_TIME 3600
+#define DEFAULT_TIMEZONE (1 * ONE_HOUR)
+#define DEFAULT_DST_RULE 1
+
+// Constant parameters
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
-#define TEMP_MIN 5.0
-#define TEMP_MAX 35.0
-#define TEMP_INCREMENT 0.5
-#define TEMP_HYSTERESIS 0.5
 #define MAX_WEEKLY_STEPS 70
 #define OVERRIDE_TIME_MAX 86400
 #define OVERRIDE_TIME_INCREMENT 300
-#define SLEEP_AFTER 60
-#define RELAY_QUIESCENT_TIME 15
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
-#define DEFAULT_OVERRIDE_TIME 3600
-#define MY_ADDR 1
-
-
-// Time parameters
-#define TIMEZONE (1 * ONE_HOUR)
-#define DST_RULES EU
-#if DST_RULES == EU
-  #include "eu_dst.h"
-#endif
 
 
 // i18n
@@ -74,6 +72,27 @@
 #define CMD_GET_SET_SETPOINT  3  
 #define CMD_GET_SET_OVERRIDE  4
 #define CMD_GET_SET_STEPS     5
+
+
+// Configuration object
+typedef struct
+{
+  char signature[12];
+  bool status;
+  time_t overrideTime;
+  uint8_t myAddress;
+  uint16_t serialSpeed;
+  float tempMin;
+  float tempMax;
+  float tempIncrement;
+  float tempHysteresis;
+  time_t sleepAfter;
+  time_t relayQuiescentTime;
+  time_t overrideTimeDefault;
+  time_t timeZone;
+  time_t dstRule;
+} configuration_t;
+configuration_t config;
 
 
 // Global variables
@@ -107,14 +126,8 @@ bool settingOverride;
 
 // EEPROM storage
 // Schedule table
-bool status;
-#define EEPROMstatusAddress (0)
-
-time_t overrideTime;
-#define EEPROMoverrideTimeAddress (sizeof(bool))
-
 typedef struct {uint16_t tow; float temperature;} programStep;  // there will be many of this...
-#define EEPROMstepAddress(x) (EEPROMoverrideTimeAddress + sizeof(time_t) + x * sizeof(programStep))
+#define EEPROMstepAddress(x) (sizeof(configuration_t) + x * sizeof(programStep))
 
 
 // RS-485 support

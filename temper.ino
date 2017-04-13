@@ -25,7 +25,7 @@ void serialEvent()
   strcpy(cmdString, serbuf);
   addr = atoi(strtok(cmdString, delimiters));
 
-  if (addr == MY_ADDR)
+  if (addr == config.myAddress)
   {
     cmd = atoi(strtok(NULL, delimiters));
 
@@ -35,7 +35,7 @@ void serialEvent()
       switch (cmd)
       {
         case CMD_GET_TEMPERATURE: // Get temperature
-          mySerial.print(MY_ADDR);
+          mySerial.print(config.myAddress);
           mySerial.print(',');
           mySerial.print(cmd);
           mySerial.print(',');
@@ -58,7 +58,7 @@ void serialEvent()
           }
           if (ok)
           {
-            mySerial.print(MY_ADDR);
+            mySerial.print(config.myAddress);
             mySerial.print(',');
             mySerial.print(cmd);
             mySerial.print(',');
@@ -69,12 +69,12 @@ void serialEvent()
           if ((token = strtok(NULL, delimiters)) != NULL)
           {
             tempTemp = atof(token);
-            if (tempTemp >= TEMP_MIN && tempTemp <= TEMP_MAX)
+            if (tempTemp >= config.tempMin && tempTemp <= config.tempMax)
             {
               setpoint = tempTemp;
-              if (overrideTime <= now)
+              if (config.overrideTime <= now)
               {
-                SetOverride(now + DEFAULT_OVERRIDE_TIME);
+                SetOverride(now + config.overrideTimeDefault);
               }
             }
             else
@@ -84,7 +84,7 @@ void serialEvent()
           }
           if (ok)
           {
-            mySerial.print(MY_ADDR);
+            mySerial.print(config.myAddress);
             mySerial.print(',');
             mySerial.print(cmd);
             mySerial.print(',');
@@ -110,11 +110,11 @@ void serialEvent()
           }
           if (ok)
           {
-            mySerial.print(MY_ADDR);
+            mySerial.print(config.myAddress);
             mySerial.print(',');
             mySerial.print(cmd);
             mySerial.print(',');
-            mySerial.println(overrideTime + UNIX_OFFSET);
+            mySerial.println(config.overrideTime + UNIX_OFFSET);
           }
           break;
         case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
@@ -154,7 +154,7 @@ void serialEvent()
                   else
                   {
                     step.temperature = atof(token);
-                    if (step.temperature < TEMP_MIN || step.temperature > TEMP_MAX)
+                    if (step.temperature < config.tempMin || step.temperature > config.tempMax)
                     {
                       ok = false;
                     }
@@ -180,7 +180,7 @@ void serialEvent()
 
     if (!ok)
     {
-      mySerial.print(MY_ADDR);
+      mySerial.print(config.myAddress);
       mySerial.print(",0,\"");
       mySerial.print(serbuf);
       mySerial.println('"');
@@ -189,6 +189,36 @@ void serialEvent()
   }
 }
 
+
+// Get configuration from EEPROM (or store default config if missing)
+void GetConfig()
+{
+  EEPROM.get(0, config);
+  if (strcmp(config.signature, SIGNATURE) != 0)
+  {
+    strcpy(config.signature, SIGNATURE);
+    config.status = true;
+    config.overrideTime = 0;
+    config.myAddress = DEFAULT_ADDRESS;
+    config.serialSpeed = DEFAULT_SERIAL_SPEED;
+    config.tempMin = DEFAULT_TEMP_MIN;
+    config.tempMax = DEFAULT_TEMP_MAX;
+    config.tempIncrement = DEFAULT_TEMP_INCREMENT;
+    config.tempHysteresis = DEFAULT_TEMP_HYSTERESIS;
+    config.sleepAfter = DEFAULT_SLEEP_AFTER;
+    config.relayQuiescentTime = DEFAULT_RELAY_QUIESCENT_TIME;
+    config.overrideTimeDefault = DEFAULT_OVERRIDE_TIME;
+    config.timeZone = DEFAULT_TIMEZONE;
+    config.dstRule = DEFAULT_DST_RULE;
+    PutConfig();
+  }
+}
+
+// Write current configuration (status) to EEPROM
+void PutConfig()
+{
+  EEPROM.put(0, config);
+}
 
 // Convert a string to a time_t value
 // Similar to atoi() and atof()...
@@ -217,26 +247,26 @@ void NullFunction()
 // Toggle the system status (ON/OFF)
 void ChangeStatus()
 {
-  if (status)
+  if (config.status)
   {
-    status = false;
+    config.status = false;
     digitalWrite(RELAY_PIN, LOW);
     handler = &OffHandler;
   }
   else
   {
-    status = true;
+    config.status = true;
     handler = &TemperatureHandler;
   }
-  EEPROM.put(EEPROMstatusAddress, status);
+  PutConfig();
 }
 
 
 // Set the global overrideTime and store it to EEPROM
 void SetOverride(time_t time)
 {
-  EEPROM.put(EEPROMoverrideTimeAddress, time);
-  overrideTime = time;
+  config.overrideTime = time;
+  PutConfig();
 }
 
 
@@ -246,7 +276,7 @@ void PrintStep(int stepIdx)
   programStep step;
   
   EEPROM.get(EEPROMstepAddress(stepIdx), step);
-  mySerial.print(MY_ADDR);
+  mySerial.print(config.myAddress);
   mySerial.print(',');
   mySerial.print(CMD_GET_SET_STEPS);
   mySerial.print(',');
@@ -275,7 +305,7 @@ void WakingUp()
 // Also 2nd stage of waking up (rotary encoder associated to temperature setting)
 void CheckIdle()
 {
-  if (handler == &TemperatureHandler && now > lastTouched + SLEEP_AFTER)
+  if (handler == &TemperatureHandler && now > lastTouched + config.sleepAfter)
   {
     SleepHandler.DisplayFunction = &DisplayOFF;
     handler = &SleepHandler;
@@ -317,11 +347,11 @@ void SwitchToSetOverride()
     mySerial.print(timestamp);
     mySerial.println(F(" Switching to Override"));
   #endif
-  if (overrideTime < now)
+  if (config.overrideTime < now)
   {
     SetOverride(now);
   }
-  localtime_r(&overrideTime, &tmOverride);
+  localtime_r(&config.overrideTime, &tmOverride);
   tmOverride.tm_sec = 0;
   SetYearHandler.tm_base =    &tmOverride;
   SetMonthHandler.tm_base =   &tmOverride;
@@ -513,9 +543,9 @@ void EncoderDispatcher()
     {
       lastTouched = now;
       handler->EncoderRotatedFunction(value);
-      if (handler == &TemperatureHandler & overrideTime < now)
+      if (handler == &TemperatureHandler & config.overrideTime < now)
       {
-        SetOverride(now + DEFAULT_OVERRIDE_TIME);;
+        SetOverride(now + config.overrideTimeDefault);;
       }
     }
   }
@@ -569,7 +599,7 @@ void GetTime()
   {
     now = 0;
     clockFailed = true;
-    setpoint = TemperatureHandler.Min;
+    setpoint = config.tempMin;
     #if DEBUG > 0
       mySerial.println(F("RTC clock failed!"));
     #endif
@@ -600,7 +630,7 @@ void GetTemperature()
       mySerial.print(timestamp);
       mySerial.println(F(" MCP9808 failed!"));
     #endif
-    temperature = TemperatureHandler.Max;
+    temperature = config.tempMax;
     tempFailed = true;
   }
 #endif
@@ -616,13 +646,13 @@ void GetTemperature()
 // See if relay status should be modified
 void SetRelay()
 {
-  if ((abs(setpoint - temperature) > TEMP_HYSTERESIS))
+  if ((abs(setpoint - temperature) > config.tempHysteresis))
   {
     relayTarget = setpoint > temperature;
 
     if (relayStatus != relayTarget)
     {
-      if (now - prevActivationTime > RELAY_QUIESCENT_TIME)
+      if (now - prevActivationTime > config.relayQuiescentTime)
       {
         digitalWrite(RELAY_PIN, relayTarget ? HIGH : LOW);
         prevActivationTime = now;
@@ -652,10 +682,10 @@ void SetRelay()
 void CheckSchedule()
 {
   int stepIdx = 0;
-  float newtemp = TemperatureHandler.Min;
+  float newtemp = config.tempMin;
   programStep step;
 
-  if (overrideTime > now) return;
+  if (config.overrideTime > now) return;
 
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
@@ -723,11 +753,11 @@ void SetSchedule()
   PutStepToEEPROM(0, tempStep);
 
   tempStep.tow = nowTOW + 1;  // This is wrong, I know. OK unless at the turn of the hour...
-  tempStep.temperature = TEMP_MAX;
+  tempStep.temperature = config.tempMax;
   PutStepToEEPROM(1, tempStep);
 
   tempStep.tow = nowTOW + 2;  // This is wrong, I know. OK unless at the turn of the hour...
-  tempStep.temperature = TEMP_MIN;
+  tempStep.temperature = config.tempMin;
   PutStepToEEPROM(2, tempStep);
 
   tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
@@ -735,15 +765,15 @@ void SetSchedule()
   PutStepToEEPROM(3, tempStep);
 
   tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
-  tempStep.temperature = TEMP_MAX;
+  tempStep.temperature = config.tempMax;
   PutStepToEEPROM(4, tempStep);
 
   tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
-  tempStep.temperature = TEMP_MIN;
+  tempStep.temperature = config.tempMin;
   PutStepToEEPROM(5, tempStep);
 
   tempStep.tow = 65535;
-  tempStep.temperature = TEMP_MIN;
+  tempStep.temperature = config.tempMin;
 
   for (int step = 6; step < MAX_WEEKLY_STEPS; step++)
   {
@@ -775,7 +805,7 @@ void DisplayTemperature()
   dtostrf(setpoint, 5, 1, tempString);
   sprintf(lcdLine2, "S%5s  %3s  %3s",
     tempString,
-    (overrideTime > now ? "OVR" : ""),
+    (config.overrideTime > now ? "OVR" : ""),
     (relayStatus == relayTarget ? (relayTarget ? " ON" : "OFF") : (relayTarget ? " on" : "off")));
   RefreshLCD();
 }
@@ -812,7 +842,7 @@ void DisplayOFF()
 // Display the OFF message when the system is in the "OFF" state
 void DisplayOffStatus()
 {
-  if (now > lastTouched + SLEEP_AFTER)
+  if (now > lastTouched + config.sleepAfter)
   {
     DisplayOFF();
   }
@@ -886,7 +916,7 @@ void DisplayTemperature()
     }
 
     //Override
-    if (overrideTime > now)
+    if (config.overrideTime > now)
     {
       u8g2.drawStr(108, 41, "OVR");
     }
@@ -979,7 +1009,7 @@ void DisplayOFF()
 // Display the OFF message when the system is in the "OFF" state
 void DisplayOffStatus()
 {
-  if (now > lastTouched + SLEEP_AFTER)
+  if (now > lastTouched + config.sleepAfter)
   {
     DisplayOFF();
   }
@@ -998,9 +1028,12 @@ void DisplayOffStatus()
 // Setup function
 void setup()
 {
+  
+  // Read configuration from EEPROM
+  GetConfig();
 
   // Setup serial communication
-  mySerial.begin(SERIAL_SPEED);
+  mySerial.begin(config.serialSpeed);
   #if DEBUG > 0
     mySerial.println(F("Setup started."));
   #endif
@@ -1029,11 +1062,15 @@ void setup()
     mySerial.println(F(" RTC"));
   #endif
 
+  // Instantiate the RTC object
   Rtc.Begin();
-  set_zone(TIMEZONE);
-  #if DST_RULES == EU
+
+  // Set timezone values
+  set_zone(config.timeZone);
+  if (config.dstRule == 1)
+  {
     set_dst(&eu_dst);
-  #endif
+  }
 
   // Check if the RTC clock is running (Yes, it can be stopped!)
   if (!Rtc.GetIsRunning())
@@ -1078,9 +1115,9 @@ void setup()
 
   // Configure handlers
   TemperatureHandler.float_value =                  &setpoint;
-  TemperatureHandler.Min =                          TEMP_MIN;
-  TemperatureHandler.Max =                          TEMP_MAX;
-  TemperatureHandler.Increment =                    TEMP_INCREMENT;
+  TemperatureHandler.Min =                          config.tempMin;
+  TemperatureHandler.Max =                          config.tempMax;
+  TemperatureHandler.Increment =                    config.tempIncrement;
   TemperatureHandler.EncoderRotatedFunction =       &UpdateFloatValue;
   TemperatureHandler.DisplayFunction =              &DisplayTemperature;
   TemperatureHandler.ButtonClickedFunction =        &SwitchToSetOverride;
@@ -1188,17 +1225,16 @@ void setup()
 
 
   // Init global variables
-  setpoint = TemperatureHandler.Min;
-  temperature = TemperatureHandler.Min;
+  setpoint = config.tempMin;
+  temperature = config.tempMin;
   relayTarget = false;
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW);
   prevMillis = millis() - POLLING_TIME;
 
 
-  // Get previous status from EEPROM
-  EEPROM.get(EEPROMstatusAddress, status);
-  if (status)
+  // Set the handler according to the current status
+  if (config.status)
   {
      handler = &TemperatureHandler;
   }
@@ -1206,10 +1242,6 @@ void setup()
   {
      handler = &OffHandler;
   }
-
-
-  // Get previous overrideTime from EEPROM
-  EEPROM.get(EEPROMoverrideTimeAddress, overrideTime);
 
 
   // Init the time
@@ -1252,7 +1284,7 @@ void loop()
 
     GetTime();
 
-    if (status)
+    if (config.status)
     {
       GetTemperature();
 
