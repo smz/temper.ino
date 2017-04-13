@@ -97,6 +97,10 @@ void serialEvent()
             tempTime = atot(token);
             if (tempTime >= 0)
             {
+              if (tempTime < UNIX_OFFSET)
+              {
+                tempTime = UNIX_OFFSET;
+              }
               SetOverride(tempTime - UNIX_OFFSET);
             }
             else
@@ -244,7 +248,7 @@ void PrintStep(int stepIdx)
   EEPROM.get(EEPROMstepAddress(stepIdx), step);
   mySerial.print(MY_ADDR);
   mySerial.print(',');
-  mySerial.print(CMD_GET_SET_SETPOINT);
+  mySerial.print(CMD_GET_SET_STEPS);
   mySerial.print(',');
   mySerial.print(stepIdx);
   mySerial.print(',');
@@ -315,7 +319,7 @@ void SwitchToSetOverride()
   #endif
   if (overrideTime < now)
   {
-    SetOverride(now + DEFAULT_OVERRIDE_TIME);
+    SetOverride(now);
   }
   localtime_r(&overrideTime, &tmOverride);
   tmOverride.tm_sec = 0;
