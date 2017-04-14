@@ -33,7 +33,7 @@
 #define SOFTWARE_WIRE_SDA SDA
 #define SOFTWARE_WIRE_SCL SCL
 #define RELAY_PIN 13
-#define AUTO485_DE_PIN 10
+#define AUTO485_DE_PIN 5
 
 
 // Constant parameters
@@ -44,6 +44,7 @@
 #define OVERRIDE_TIME_INCREMENT 300
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
+#define SERBUF_SIZE 20
 
 
 // Commands
@@ -123,6 +124,9 @@ char timestamp[20];
 bool tempFailed;
 bool clockFailed;
 bool settingOverride;
+char serbuf[2][SERBUF_SIZE];
+uint8_t serbufIdx = 0;
+uint8_t serbufPtr = 0;
 #if DEBUG > 8
   unsigned long loops = 0;
   #define PrintLoops() {             \

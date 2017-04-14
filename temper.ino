@@ -3,24 +3,45 @@
 // Listen to commands on the serial connection and take action.
 void serialEvent()
 {
-  #define SERBUF_SIZE 20
+  char inChar;
+  uint8_t oldPtr;
 
+  while (mySerial.available())
+  {
+    char inChar = (char) mySerial.read();
+    if (inChar == '\n')
+    {
+      serbuf[serbufPtr][serbufIdx] = '\0';
+      oldPtr = serbufPtr;
+      serbufPtr = (serbufPtr + 1) % 2;
+      serbufIdx = 0;
+      ParseCommand(serbuf[oldPtr]);
+    }
+    else
+    {
+      if (serbufIdx < SERBUF_SIZE - 1 && inChar != '\r')
+      {
+        serbuf[serbufPtr][serbufIdx++] = inChar;
+      }
+    }
+  }
+}
+
+
+// Parse command recevied on the serial connection
+void ParseCommand(char *cmdString)
+{
   int addr;
   int cmd;
   int stepIdx;
   programStep step;
   uint8_t len;
-  char serbuf[SERBUF_SIZE];
-  char cmdString[SERBUF_SIZE];
   static char delimiters[] = " ,";
   char *token;
   bool ok;
   float tempTemp;
   time_t tempTime;
 
-  len = mySerial.readBytesUntil('\n', serbuf, SERBUF_SIZE-1);
-  serbuf[len] = '\0';
-  strcpy(cmdString, serbuf);
   addr = atoi(strtok(cmdString, delimiters));
 
   if (addr == config.myAddress)
@@ -194,7 +215,7 @@ void serialEvent()
     {
       mySerial.print(config.myAddress);
       mySerial.print(",0,\"");
-      mySerial.print(serbuf);
+      mySerial.print(cmdString);
       mySerial.println('"');
     }
 
