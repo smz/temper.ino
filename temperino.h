@@ -3,6 +3,9 @@
 #include <EEPROM.h>
 
 // DEBUG
+// WARNING: Using boards with less program memory (e.g.: Arduino Pro and Pro Mini) and
+//          the SH1106 based OLED display, there is not enough memory for debugging...
+//
 //  0 Nothing
 //  1 actions
 //  2 + rotary encoder
@@ -33,20 +36,6 @@
 #define AUTO485_DE_PIN 10
 
 
-// Default configuration values
-#define SIGNATURE "$temper-1x$"
-#define DEFAULT_SERIAL_SPEED 9600
-#define DEFAULT_ADDRESS 1
-#define DEFAULT_TEMP_MIN 5.0
-#define DEFAULT_TEMP_MAX 35.0
-#define DEFAULT_TEMP_INCREMENT 0.5
-#define DEFAULT_TEMP_HYSTERESIS 0.5
-#define DEFAULT_SLEEP_AFTER 60
-#define DEFAULT_RELAY_QUIESCENT_TIME 15
-#define DEFAULT_OVERRIDE_TIME 3600
-#define DEFAULT_TIMEZONE (1 * ONE_HOUR)
-#define DEFAULT_DST_RULE 1
-
 // Constant parameters
 #define POLLING_TIME 1000
 #define ENCODER_TIMER 1000
@@ -55,6 +44,17 @@
 #define OVERRIDE_TIME_INCREMENT 300
 #define MCP9808_TEMP_RESOLUTION 0x03
 #define MCP9808_I2C_ADDRESS 0x18
+
+
+// Commands
+#define MIN_CMD 1
+#define MAX_CMD 6
+#define CMD_ON_OFF            1
+#define CMD_GET_TEMPERATURE   2
+#define CMD_GET_SET_SETPOINT  3  
+#define CMD_GET_SET_OVERRIDE  4
+#define CMD_GET_SET_STEPS     5
+#define CMD_GET_SET_TIME      6
 
 
 // i18n
@@ -66,20 +66,9 @@
 #define CLOCK_FAILED_MSG "ERRORE OROLOGIO!"
 
 
-// Commands
-#define CMD_GET_TEMPERATURE   1
-#define CMD_GET_SET_TIME      2
-#define CMD_GET_SET_SETPOINT  3  
-#define CMD_GET_SET_OVERRIDE  4
-#define CMD_GET_SET_STEPS     5
-
-
 // Configuration object
 typedef struct
 {
-  char signature[12];
-  bool status;
-  time_t overrideTime;
   uint8_t myAddress;
   uint16_t serialSpeed;
   float tempMin;
@@ -95,9 +84,30 @@ typedef struct
 configuration_t config;
 
 
+// Status object
+typedef struct
+{
+  bool on;
+  float setpoint;
+  time_t overrideTime;
+} status_t;
+status_t status;
+status_t prevStatus;
+
+
+// Schedule table
+typedef struct {uint16_t tow; float temperature;} programStep;  // there will be many of this...
+
+
+// EEPROM storage addresses
+#define CONFIG_ADDR (0)
+#define STATUS_ADDR (CONFIG_ADDR + sizeof(configuration_t))
+#define STEPS_ADDR (STATUS_ADDR + sizeof(status_t)) 
+#define EEPROMstepAddress(x) (STEPS_ADDR + x * sizeof(programStep))
+
+
 // Global variables
 float temperature;
-float setpoint;
 bool relayTarget;
 bool relayStatus;
 time_t prevActivationTime;
@@ -122,12 +132,6 @@ bool settingOverride;
       loops = 0;                     \
       }
 #endif
-
-
-// EEPROM storage
-// Schedule table
-typedef struct {uint16_t tow; float temperature;} programStep;  // there will be many of this...
-#define EEPROMstepAddress(x) (sizeof(configuration_t) + x * sizeof(programStep))
 
 
 // RS-485 support
