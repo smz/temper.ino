@@ -48,167 +48,160 @@ void ParseCommand(char *cmdString)
   {
     cmd = atoi(strtok(NULL, delimiters));
 
-    if (cmd >= MIN_CMD && cmd <= MAX_CMD)
+    ok = true;
+    switch (cmd)
     {
-      ok = true;
-      switch (cmd)
-      {
-        case CMD_ON_OFF: // Turn ON/OFF (or get status)
-          if ((token = strtok(NULL, delimiters)) != NULL)
+      case CMD_ON_OFF: // Turn ON/OFF (or get status)
+        if ((token = strtok(NULL, delimiters)) != NULL)
+        {
+          if ((bool) atoi(token) != prevStatus.on)
           {
-            if ((bool) atoi(token) != prevStatus.on)
-            {
-              ChangeStatus();
-            }
+            ChangeStatus();
           }
-          mySerial.print(config.myAddress);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(status.on);
-          break;
-        case CMD_GET_TEMPERATURE: // Get temperature
-          mySerial.print(config.myAddress);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(temperature);
-          break;
-        case CMD_GET_SET_SETPOINT: // Get-Set setpoint
-          if ((token = strtok(NULL, delimiters)) != NULL)
+        }
+        mySerial.print(config.myAddress);
+        mySerial.print(',');
+        mySerial.print(cmd);
+        mySerial.print(',');
+        mySerial.println(status.on);
+        break;
+      case CMD_GET_TEMPERATURE: // Get temperature
+        mySerial.print(config.myAddress);
+        mySerial.print(',');
+        mySerial.print(cmd);
+        mySerial.print(',');
+        mySerial.println(temperature);
+        break;
+      case CMD_GET_SET_SETPOINT: // Get-Set setpoint
+        if ((token = strtok(NULL, delimiters)) != NULL)
+        {
+          tempTemp = atof(token);
+          if (tempTemp >= config.tempMin && tempTemp <= config.tempMax)
           {
-            tempTemp = atof(token);
-            if (tempTemp >= config.tempMin && tempTemp <= config.tempMax)
+            status.setpoint = tempTemp;
+            if (status.overrideTime <= now)
             {
-              status.setpoint = tempTemp;
-              if (status.overrideTime <= now)
-              {
-                SetOverride(now + config.overrideTimeDefault);
-              }
-            }
-            else
-            {
-              ok = false;
-            }
-          }
-          if (ok)
-          {
-            mySerial.print(config.myAddress);
-            mySerial.print(',');
-            mySerial.print(cmd);
-            mySerial.print(',');
-            mySerial.println(status.setpoint);
-          }
-          break;
-        case CMD_GET_SET_OVERRIDE: // Get-Set override time
-          if ((token = strtok(NULL, delimiters)) != NULL)
-          {
-            tempTime = atot(token);
-            if (tempTime >= 0)
-            {
-              if (tempTime < UNIX_OFFSET)
-              {
-                tempTime = UNIX_OFFSET;
-              }
-              SetOverride(tempTime - UNIX_OFFSET);
-            }
-            else
-            {
-              ok = false;
-            }
-          }
-          if (ok)
-          {
-            mySerial.print(config.myAddress);
-            mySerial.print(',');
-            mySerial.print(cmd);
-            mySerial.print(',');
-            mySerial.println(status.overrideTime + UNIX_OFFSET);
-          }
-          break;
-        case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
-          if ((token = strtok(NULL, delimiters)) == NULL)
-          {
-            for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
-            {
-              PrintStep(stepIdx);
+              SetOverride(now + config.overrideTimeDefault);
             }
           }
           else
           {
-            stepIdx = atoi(token);
-            if (stepIdx < 0 || stepIdx >= MAX_WEEKLY_STEPS)
+            ok = false;
+          }
+        }
+        if (ok)
+        {
+          mySerial.print(config.myAddress);
+          mySerial.print(',');
+          mySerial.print(cmd);
+          mySerial.print(',');
+          mySerial.println(status.setpoint);
+        }
+        break;
+      case CMD_GET_SET_OVERRIDE: // Get-Set override time
+        if ((token = strtok(NULL, delimiters)) != NULL)
+        {
+          tempTime = atot(token);
+          if (tempTime >= 0)
+          {
+            if (tempTime < UNIX_OFFSET)
             {
-              ok = false;
+              tempTime = UNIX_OFFSET;
+            }
+            SetOverride(tempTime - UNIX_OFFSET);
+          }
+          else
+          {
+            ok = false;
+          }
+        }
+        if (ok)
+        {
+          mySerial.print(config.myAddress);
+          mySerial.print(',');
+          mySerial.print(cmd);
+          mySerial.print(',');
+          mySerial.println(status.overrideTime + UNIX_OFFSET);
+        }
+        break;
+      case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
+        if ((token = strtok(NULL, delimiters)) == NULL)
+        {
+          for (stepIdx = 0; stepIdx < MAX_WEEKLY_STEPS; stepIdx++)
+          {
+            PrintStep(stepIdx);
+          }
+        }
+        else
+        {
+          stepIdx = atoi(token);
+          if (stepIdx < 0 || stepIdx >= MAX_WEEKLY_STEPS)
+          {
+            ok = false;
+          }
+          else
+          {
+            if ((token = strtok(NULL, delimiters)) == NULL)
+            {
+              PrintStep(stepIdx);
             }
             else
             {
-              if ((token = strtok(NULL, delimiters)) == NULL)
+              step.tow = atoi(token);
+              if (step.tow < 0 || step.tow >= 62359)
               {
-                PrintStep(stepIdx);
+                ok = false;
               }
               else
               {
-                step.tow = atoi(token);
-                if (step.tow < 0 || step.tow >= 62359)
+                if ((token = strtok(NULL, delimiters)) == NULL)
                 {
                   ok = false;
                 }
                 else
                 {
-                  if ((token = strtok(NULL, delimiters)) == NULL)
+                  step.temperature = atof(token);
+                  if (step.temperature < config.tempMin || step.temperature > config.tempMax)
                   {
                     ok = false;
                   }
                   else
                   {
-                    step.temperature = atof(token);
-                    if (step.temperature < config.tempMin || step.temperature > config.tempMax)
-                    {
-                      ok = false;
-                    }
-                    else
-                    {
-                      PutStepToEEPROM(stepIdx, step);
-                      PrintStep(stepIdx);
-                    }
+                    PutStepToEEPROM(stepIdx, step);
+                    PrintStep(stepIdx);
                   }
                 }
               }
             }
           }
-          break;
-        case CMD_GET_SET_TIME: // Get-Set system time
-          if ((token = strtok(NULL, delimiters)) != NULL)
+        }
+        break;
+      case CMD_GET_SET_TIME: // Get-Set system time
+        if ((token = strtok(NULL, delimiters)) != NULL)
+        {
+          tempTime = atot(token);
+          if (tempTime >= 0)
           {
-            tempTime = atot(token);
-            if (tempTime >= 0)
-            {
-              now = tempTime - UNIX_OFFSET;
-              Rtc.SetTime(&now);
-              localtime_r(&now, &tmNow);
-            }
-            else
-            {
-              ok = false;
-            }
+            now = tempTime - UNIX_OFFSET;
+            Rtc.SetTime(&now);
+            localtime_r(&now, &tmNow);
           }
-          if (ok)
+          else
           {
-            mySerial.print(config.myAddress);
-            mySerial.print(',');
-            mySerial.print(cmd);
-            mySerial.print(',');
-            mySerial.println(now + UNIX_OFFSET);
+            ok = false;
           }
-          break;
-        default:
-          ok = false;
-      }
-    }
-    else
-    {
-      ok = false;
+        }
+        if (ok)
+        {
+          mySerial.print(config.myAddress);
+          mySerial.print(',');
+          mySerial.print(cmd);
+          mySerial.print(',');
+          mySerial.println(now + UNIX_OFFSET);
+        }
+        break;
+      default:
+        ok = false;
     }
 
     if (!ok)
@@ -465,15 +458,24 @@ void SwitchToTemperature()
 // Generic function used by the rotary encoder handlers to set a float value
 void UpdateFloatValue (int16_t value)
 {
-  *handler->float_value += value * handler->Increment;
-  if (*handler->float_value > handler->Max)
+  float temp = *handler->float_value + value * handler->Increment;
+
+  if (temp > handler->Max)
   {
-    *handler->float_value = handler->Max;
+    temp = handler->Max;
   }
-  if (*handler->float_value < handler->Min)
+
+  if (temp < handler->Min)
   {
-    *handler->float_value = handler->Min;
+    temp = handler->Min;
   }
+
+  if (handler == &TemperatureHandler && temp != *handler->float_value && status.overrideTime < now)
+  {
+    SetOverride(now + config.overrideTimeDefault);
+  }
+
+  *handler->float_value = temp;
 
   #if DEBUG > 1
     mySerial.print(timestamp);
@@ -557,10 +559,6 @@ void EncoderDispatcher()
     {
       lastTouched = now;
       handler->EncoderRotatedFunction(value);
-      if (handler == &TemperatureHandler & status.overrideTime < now)
-      {
-        SetOverride(now + config.overrideTimeDefault);
-      }
     }
   }
   else

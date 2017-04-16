@@ -48,8 +48,6 @@
 
 
 // Commands
-#define MIN_CMD 1
-#define MAX_CMD 6
 #define CMD_ON_OFF            1
 #define CMD_GET_TEMPERATURE   2
 #define CMD_GET_SET_SETPOINT  3  
