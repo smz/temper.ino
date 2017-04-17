@@ -42,6 +42,7 @@ void ParseCommand(char *cmdString)
   float tempTemp;
   time_t tempTime;
 
+  strcpy(tempString, cmdString);
   addr = atoi(strtok(cmdString, delimiters));
 
   if (addr == config.myAddress)
@@ -59,18 +60,10 @@ void ParseCommand(char *cmdString)
             ChangeStatus();
           }
         }
-        mySerial.print(config.myAddress);
-        mySerial.print(',');
-        mySerial.print(cmd);
-        mySerial.print(',');
-        mySerial.println(status.on);
+        PrintAnswer(cmd, status.on);
         break;
       case CMD_GET_TEMPERATURE: // Get temperature
-        mySerial.print(config.myAddress);
-        mySerial.print(',');
-        mySerial.print(cmd);
-        mySerial.print(',');
-        mySerial.println(temperature);
+        PrintAnswer(cmd, temperature);
         break;
       case CMD_GET_SET_SETPOINT: // Get-Set setpoint
         if ((token = strtok(NULL, delimiters)) != NULL)
@@ -91,11 +84,7 @@ void ParseCommand(char *cmdString)
         }
         if (ok)
         {
-          mySerial.print(config.myAddress);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(status.setpoint);
+          PrintAnswer(cmd, status.setpoint);
         }
         break;
       case CMD_GET_SET_OVERRIDE: // Get-Set override time
@@ -117,11 +106,7 @@ void ParseCommand(char *cmdString)
         }
         if (ok)
         {
-          mySerial.print(config.myAddress);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(status.overrideTime + UNIX_OFFSET);
+          PrintAnswer(cmd, status.overrideTime);
         }
         break;
       case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
@@ -148,7 +133,7 @@ void ParseCommand(char *cmdString)
             else
             {
               step.tow = atoi(token);
-              if (step.tow < 0 || step.tow >= 62359)
+              if (step.tow < 0 || step.tow > 62400)
               {
                 ok = false;
               }
@@ -193,11 +178,7 @@ void ParseCommand(char *cmdString)
         }
         if (ok)
         {
-          mySerial.print(config.myAddress);
-          mySerial.print(',');
-          mySerial.print(cmd);
-          mySerial.print(',');
-          mySerial.println(now + UNIX_OFFSET);
+          PrintAnswer(cmd, now + UNIX_OFFSET);
         }
         break;
       default:
@@ -208,7 +189,7 @@ void ParseCommand(char *cmdString)
     {
       mySerial.print(config.myAddress);
       mySerial.print(",0,\"");
-      mySerial.print(cmdString);
+      mySerial.print(tempString);
       mySerial.println('"');
     }
 
@@ -231,6 +212,46 @@ time_t atot(char *str)
   }
 
   return t;
+}
+
+
+// Print an answer to the serial connection
+void PrintAnswer(int cmd, int answer)
+{
+  StartAnswer(cmd);
+  mySerial.println(answer);
+}
+void PrintAnswer(int cmd, float answer)
+{
+  StartAnswer(cmd);
+  mySerial.println(answer);
+}
+void PrintAnswer(int cmd, time_t answer)
+{
+  StartAnswer(cmd);
+  mySerial.println(answer);
+}
+void StartAnswer(int cmd)
+{
+  mySerial.print(config.myAddress);
+  mySerial.print(',');
+  mySerial.print(cmd);
+  mySerial.print(',');
+}
+
+
+// Read a schedule step and print it to the serial connection as an answer
+void PrintStep(int stepIdx)
+{
+  programStep step;
+
+  EEPROM.get(EEPROMstepAddress(stepIdx), step);
+  StartAnswer(CMD_GET_SET_STEPS);
+  mySerial.print(stepIdx);
+  mySerial.print(',');
+  mySerial.print(step.tow);
+  mySerial.print(',');
+  mySerial.println(step.temperature);
 }
 
 
@@ -274,24 +295,6 @@ void ChangeStatus()
 void SetOverride(time_t time)
 {
   status.overrideTime = time;
-}
-
-
-// Read a schedule step and prin it to the serial connection
-void PrintStep(int stepIdx)
-{
-  programStep step;
-
-  EEPROM.get(EEPROMstepAddress(stepIdx), step);
-  mySerial.print(config.myAddress);
-  mySerial.print(',');
-  mySerial.print(CMD_GET_SET_STEPS);
-  mySerial.print(',');
-  mySerial.print(stepIdx);
-  mySerial.print(',');
-  mySerial.print(step.tow);
-  mySerial.print(',');
-  mySerial.println(step.temperature);
 }
 
 
@@ -754,46 +757,6 @@ void PutStepToEEPROM(int stepIdx, programStep step)
 }
 
 
-// Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
-void SetSchedule()
-{
-  programStep tempStep;
-
-  // This is just for testing. Must be replaced with code to get values from the controller...)
-  tempStep.tow = nowTOW;
-  tempStep.temperature = 25.0;
-  PutStepToEEPROM(0, tempStep);
-
-  tempStep.tow = nowTOW + 1;  // This is wrong, I know. OK unless at the turn of the hour...
-  tempStep.temperature = config.tempMax;
-  PutStepToEEPROM(1, tempStep);
-
-  tempStep.tow = nowTOW + 2;  // This is wrong, I know. OK unless at the turn of the hour...
-  tempStep.temperature = config.tempMin;
-  PutStepToEEPROM(2, tempStep);
-
-  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000;     // Tomorrow's 00:00:00
-  tempStep.temperature = 25.0;
-  PutStepToEEPROM(3, tempStep);
-
-  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 1; // Tomorrow's 00:01:00
-  tempStep.temperature = config.tempMax;
-  PutStepToEEPROM(4, tempStep);
-
-  tempStep.tow = ((tmNow.tm_wday + 1) % 7) * 10000 + 2; // Tomorrow's 00:02:00
-  tempStep.temperature = config.tempMin;
-  PutStepToEEPROM(5, tempStep);
-
-  tempStep.tow = 65535;
-  tempStep.temperature = config.tempMin;
-
-  for (int step = 6; step < MAX_WEEKLY_STEPS; step++)
-  {
-    PutStepToEEPROM(step, tempStep);
-  }
-}
-
-
 #ifdef LCD
 // Actually print the content of the two line buffers on the LCD
 void RefreshLCD()
@@ -810,11 +773,11 @@ void RefreshLCD()
 // Main display page
 void DisplayTemperature()
 {
-  dtostrf(temperature, 5, 1, tempString);
+  dtostrf(temperature, -5, 1, tempString);
   sprintf(lcdLine1, "A%5s  %2.2i:%2.2i:%2.2i",
     tempString,
     tmNow.tm_hour, tmNow.tm_min, tmNow.tm_sec);
-  dtostrf(status.setpoint, 5, 1, tempString);
+  dtostrf(status.setpoint, -5, 1, tempString);
   sprintf(lcdLine2, "S%5s  %3s  %3s",
     tempString,
     (status.overrideTime > now ? "OVR" : ""),
@@ -887,15 +850,8 @@ void DisplayTemperature()
     }
     else
     {
-      dtostrf(temperature, 5, 1, tempString);
-      if (temperature > 0)
-      {
-        u8g2.drawStr(32, 14, &tempString[1]);
-      }
-      else
-      {
-        u8g2.drawStr(32, 14, tempString);
-      }
+      dtostrf(temperature, -5, 1, tempString);
+      u8g2.drawStr(32, 14, tempString);
     }
 
     // Status
@@ -908,8 +864,8 @@ void DisplayTemperature()
     u8g2.setFont(SMALL_FONT);
     u8g2.drawStr(10, 41, "S:");
     u8g2.setFont(BIG_FONT);
-    dtostrf(status.setpoint, 5, 1, tempString);
-    u8g2.drawStr(32, 41, &tempString[1]);
+    dtostrf(status.setpoint, -5, 1, tempString);
+    u8g2.drawStr(32, 41, tempString);
 
     // Time
     static const char * months[] = {MONTHS};
@@ -1263,10 +1219,6 @@ void setup()
   GetTime();
   prevActivationTime = now;
   lastTouched = now;
-
-
-  // Init the weekly schedule (TEMPORARY FUNCTION, TO BE REMOVED)
-  SetSchedule();
 
 
   #if DEBUG > 0
