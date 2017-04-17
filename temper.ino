@@ -106,7 +106,7 @@ void ParseCommand(char *cmdString)
         }
         if (ok)
         {
-          PrintAnswer(cmd, status.overrideTime);
+          PrintAnswer(cmd, status.overrideTime + UNIX_OFFSET);
         }
         break;
       case CMD_GET_SET_STEPS: // Get-Set schedule step(s)
