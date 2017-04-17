@@ -15,6 +15,9 @@
 #define DEFAULT_TIMEZONE (1 * ONE_HOUR)
 #define DEFAULT_DST_RULE 1
 
+// Constant parameters
+#define MAX_WEEKLY_STEPS 70
+
 // Configuration object
 typedef struct
 {
@@ -43,9 +46,16 @@ typedef struct
 status_t status;
 
 
+// Schedule table
+typedef struct {uint16_t tow; float temperature;} programStep;
+programStep defaultStep;
+
+
 // EEPROM storage addresses
 #define CONFIG_ADDR (0)
 #define STATUS_ADDR (CONFIG_ADDR + sizeof(configuration_t))
+#define STEPS_ADDR (STATUS_ADDR + sizeof(status_t)) 
+#define EEPROMstepAddress(x) (STEPS_ADDR + x * sizeof(programStep))
 
 
 // Setup function
@@ -71,6 +81,14 @@ void setup()
   status.setpoint = DEFAULT_TEMP_MIN;
   status.overrideTime = 0;
   EEPROM.put(STATUS_ADDR, status);
+
+  defaultStep.tow = 62400;
+  defaultStep.temperature = DEFAULT_TEMP_MIN;
+  
+  for (int i = 0; i < MAX_WEEKLY_STEPS; i++)
+  {
+    EEPROM.put(EEPROMstepAddress(i), defaultStep);
+  }
 
   Serial.println("Done");
 }
