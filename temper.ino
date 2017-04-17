@@ -74,7 +74,7 @@ void ParseCommand(char *cmdString)
             status.setpoint = tempTemp;
             if (status.overrideTime <= now)
             {
-              SetOverride(now + config.overrideTimeDefault);
+              SetOverride(NextStepTime());
             }
           }
           else
@@ -475,7 +475,7 @@ void UpdateFloatValue (int16_t value)
 
   if (handler == &TemperatureHandler && temp != *handler->float_value && status.overrideTime < now)
   {
-    SetOverride(now + config.overrideTimeDefault);
+    SetOverride(NextStepTime());
   }
 
   *handler->float_value = temp;
@@ -720,6 +720,61 @@ void CheckSchedule()
       mySerial.println(status.setpoint);
     }
   #endif
+}
+
+
+// Find the "next" schedule step time
+time_t NextStepTime()
+{
+  int stepIdx = 0;
+  programStep step;
+  struct tm tmNext;
+  time_t nextTime;
+  int nextDay;
+
+  localtime_r(&now, &tmNext);
+  tmNext.tm_sec = 0;
+
+  while (stepIdx < MAX_WEEKLY_STEPS)
+  {
+    EEPROM.get(EEPROMstepAddress(stepIdx), step);
+    if (step.tow < 62400 && step.tow > nowTOW) break;
+    stepIdx++;
+  }
+
+  if (stepIdx == MAX_WEEKLY_STEPS)
+  {
+    EEPROM.get(EEPROMstepAddress(0), step);
+  }
+  
+  if (step.tow < 62400)
+  {
+    mySerial.print("step.tow: ");
+    mySerial.println(step.tow);
+
+    nextDay = step.tow / 10000;
+    mySerial.print("nextDay: ");
+    mySerial.println(nextDay);
+
+    tmNext.tm_hour = (step.tow - nextDay * 10000) / 100;
+    tmNext.tm_min = (step.tow - nextDay * 10000) - tmNext.tm_hour * 100;
+
+    nextTime = mktime(&tmNext);
+    
+    nextDay = nextDay - tmNow.tm_wday;
+    if (nextDay < 0)
+    {
+      nextDay += 7;
+    }
+
+    nextTime += nextDay * 86400;
+  }
+  else
+  {
+    nextTime = now + config.overrideTimeDefault;
+  }
+
+  return nextTime;
 }
 
 
