@@ -74,7 +74,14 @@ void ParseCommand(char *cmdString)
             status.setpoint = tempTemp;
             if (status.overrideTime <= now)
             {
-              SetOverride(NextStepTime());
+              if (config.overrideTimeDefault > 0)
+              {
+                SetOverride(now + config.overrideTimeDefault);
+              }
+              else
+              {
+                SetOverride(NextStepTime());
+              }
             }
           }
           else
@@ -475,7 +482,14 @@ void UpdateFloatValue (int16_t value)
 
   if (handler == &TemperatureHandler && temp != *handler->float_value && status.overrideTime < now)
   {
-    SetOverride(NextStepTime());
+    if (config.overrideTimeDefault > 0)
+    {
+      SetOverride(now + config.overrideTimeDefault);
+    }
+    else
+    {
+      SetOverride(NextStepTime());
+    }
   }
 
   *handler->float_value = temp;
