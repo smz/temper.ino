@@ -749,12 +749,8 @@ time_t NextStepTime()
   
   if (step.tow < 62400)
   {
-    mySerial.print("step.tow: ");
-    mySerial.println(step.tow);
 
     nextDay = step.tow / 10000;
-    mySerial.print("nextDay: ");
-    mySerial.println(nextDay);
 
     tmNext.tm_hour = (step.tow - nextDay * 10000) / 100;
     tmNext.tm_min = (step.tow - nextDay * 10000) - tmNext.tm_hour * 100;
