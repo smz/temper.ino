@@ -74,7 +74,14 @@ void ParseCommand(char *cmdString)
             status.setpoint = tempTemp;
             if (status.overrideTime <= now)
             {
-              SetOverride(now + config.overrideTimeDefault);
+              if (config.overrideTimeDefault > 0)
+              {
+                SetOverride(now + config.overrideTimeDefault);
+              }
+              else
+              {
+                SetOverride(NextStepTime());
+              }
             }
           }
           else
@@ -475,7 +482,14 @@ void UpdateFloatValue (int16_t value)
 
   if (handler == &TemperatureHandler && temp != *handler->float_value && status.overrideTime < now)
   {
-    SetOverride(now + config.overrideTimeDefault);
+    if (config.overrideTimeDefault > 0)
+    {
+      SetOverride(now + config.overrideTimeDefault);
+    }
+    else
+    {
+      SetOverride(NextStepTime());
+    }
   }
 
   *handler->float_value = temp;
@@ -697,7 +711,7 @@ void SetRelay()
 void CheckSchedule()
 {
   int stepIdx = 0;
-  float newtemp = config.tempMin;
+  float newtemp = status.setpoint;
   programStep step;
 
   if (status.overrideTime > now) return;
@@ -720,6 +734,54 @@ void CheckSchedule()
       mySerial.println(status.setpoint);
     }
   #endif
+}
+
+
+// Find the "next" schedule step time
+time_t NextStepTime()
+{
+  int stepIdx = 0;
+  programStep step;
+  struct tm tmNext;
+  time_t nextTime;
+  int nextDay;
+
+  nextTime = now;
+  localtime_r(&now, &tmNext);
+
+  while (stepIdx < MAX_WEEKLY_STEPS)
+  {
+    EEPROM.get(EEPROMstepAddress(stepIdx), step);
+    if (step.tow < 62400 && step.tow > nowTOW) break;
+    stepIdx++;
+  }
+
+  if (stepIdx == MAX_WEEKLY_STEPS)
+  {
+    EEPROM.get(EEPROMstepAddress(0), step);
+  }
+  
+  if (step.tow < 62400)
+  {
+
+    nextDay = step.tow / 10000;
+
+    tmNext.tm_hour = (step.tow - nextDay * 10000) / 100;
+    tmNext.tm_min = (step.tow - nextDay * 10000) - tmNext.tm_hour * 100;
+
+    tmNext.tm_sec = 0;
+    nextTime = mktime(&tmNext);
+    
+    nextDay = nextDay - tmNow.tm_wday;
+    if (step.tow < nowTOW)
+    {
+      nextDay += 7;
+    }
+
+    nextTime += nextDay * 86400;
+  }
+
+  return nextTime;
 }
 
 
