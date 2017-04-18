@@ -697,7 +697,7 @@ void SetRelay()
 void CheckSchedule()
 {
   int stepIdx = 0;
-  float newtemp = config.tempMin;
+  float newtemp = status.setpoint;
   programStep step;
 
   if (status.overrideTime > now) return;
@@ -732,8 +732,8 @@ time_t NextStepTime()
   time_t nextTime;
   int nextDay;
 
+  nextTime = now;
   localtime_r(&now, &tmNext);
-  tmNext.tm_sec = 0;
 
   while (stepIdx < MAX_WEEKLY_STEPS)
   {
@@ -755,6 +755,7 @@ time_t NextStepTime()
     tmNext.tm_hour = (step.tow - nextDay * 10000) / 100;
     tmNext.tm_min = (step.tow - nextDay * 10000) - tmNext.tm_hour * 100;
 
+    tmNext.tm_sec = 0;
     nextTime = mktime(&tmNext);
     
     nextDay = nextDay - tmNow.tm_wday;
@@ -764,10 +765,6 @@ time_t NextStepTime()
     }
 
     nextTime += nextDay * 86400;
-  }
-  else
-  {
-    nextTime = now + config.overrideTimeDefault;
   }
 
   return nextTime;
