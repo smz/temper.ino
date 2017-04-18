@@ -759,7 +759,7 @@ time_t NextStepTime()
     nextTime = mktime(&tmNext);
     
     nextDay = nextDay - tmNow.tm_wday;
-    if (nextDay < 0)
+    if (step.tow < nowTOW)
     {
       nextDay += 7;
     }
